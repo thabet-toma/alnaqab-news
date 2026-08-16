@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b132b" />
+      <stop offset="50%" stop-color="#1c2541" />
+      <stop offset="100%" stop-color="#0d1b2a" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d90429" />
+      <stop offset="100%" stop-color="#f4a261" />
+    </linearGradient>
+    <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1" />
+    </pattern>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#bgGrad)" />
+  <rect width="800" height="450" fill="url(#gridPattern)" />
+  
+  <!-- Ambient glow -->
+  <circle cx="400" cy="225" r="180" fill="#d90429" opacity="0.12" filter="blur(40px)" />
+  
+  <!-- Decorative badge -->
+  <g transform="translate(350, 150)">
+    <rect x="0" y="0" width="100" height="100" rx="24" fill="url(#accentGrad)" opacity="0.9" />
+    <!-- Newspaper icon -->
+    <path d="M30 70h40a4 4 0 0 0 4-4V34a4 4 0 0 0-4-4H38a4 4 0 0 0-4 4v36a4 4 0 0 1-4 4zm0 0a4 4 0 0 1-4-4v-18c0-2.2 1.8-4 4-4h4" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="58" y1="44" x2="44" y2="44" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <line x1="58" y1="54" x2="44" y2="54" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  </g>
+  
+  <!-- Text branding -->
+  <text x="400" y="295" font-family="'Tajawal', system-ui, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="1">موقع النقب الإخباري</text>
+  <text x="400" y="325" font-family="'Tajawal', system-ui, sans-serif" font-size="14" font-weight="500" fill="#94a3b8" text-anchor="middle">صوت النقب ونبض المجتمع</text>
+</svg>

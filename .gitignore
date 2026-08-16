@@ -1,0 +1,14 @@
+# Logs and caches
+*.log
+.DS_Store
+Thumbs.db
+
+# Environment and sensitive local config
+.env
+.env.local
+
+# Uploads content (optional - preserve directory structure)
+uploads/articles/*
+!uploads/articles/.gitkeep
+uploads/ads/*
+!uploads/ads/.gitkeep
