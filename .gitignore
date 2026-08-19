@@ -7,6 +7,9 @@ Thumbs.db
 .env
 .env.local
 
+# إعدادات كل سيرفر على حدة — تحتوي كلمات السر، لا تُرفع أبداً
+includes/config.php
+
 # Uploads content (optional - preserve directory structure)
 uploads/articles/*
 !uploads/articles/.gitkeep

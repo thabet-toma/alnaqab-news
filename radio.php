@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/functions.php';
 
 $radioConfig = getRadioConfig();
-$images = json_decode($radioConfig['images'] ?? '[]', true);
+$images = radioImages($radioConfig['images'] ?? '[]');
 $ticker = json_decode($radioConfig['ticker'] ?? '[]', true);
 $ads = json_decode($radioConfig['ads'] ?? '[]', true);
 $isAdmin = isLoggedIn();
@@ -18,7 +18,7 @@ $isAdmin = isLoggedIn();
     <title><?= e($radioConfig['station_name']) ?> - <?= e(SITE_NAME) ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Lalezar&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="<?= e(SITE_URL) ?>/assets/css/radio.css">
+    <link rel="stylesheet" href="<?= e(SITE_URL) ?>/assets/css/radio.css?v=<?= e(assetVersion('/assets/css/radio.css')) ?>">
 </head>
 <body>
     <div id="stars"></div>
@@ -47,11 +47,11 @@ $isAdmin = isLoggedIn();
 
         <div class="radio-main">
             <div class="radio-header">
-                <div class="on-air-badge">
-                    <span class="pulse-dot"></span> مباشر
+                <div class="on-air-badge" id="onAirBadge">
+                    <span class="pulse-dot"></span> <span id="onAirText">على الهواء</span>
                 </div>
-                <div class="listeners-badge">
-                    <i class="fas fa-headphones"></i> <span id="listenerCount">--</span>
+                <div class="now-playing-badge" id="nowPlayingBadge" hidden>
+                    <i class="fas fa-music"></i> <span id="nowPlayingText"></span>
                 </div>
             </div>
 
@@ -182,15 +182,26 @@ $isAdmin = isLoggedIn();
 
     <div id="toast" class="toast"></div>
 
+    <!-- يظهر فقط إذا منع المتصفح التشغيل بصوت وبدأ البث مكتوماً -->
+    <div id="unmuteOverlay" class="unmute-overlay" hidden>
+        <button type="button" id="unmuteBtn" class="unmute-btn">
+            <i class="fas fa-volume-up"></i>
+            <span>اضغط للاستماع</span>
+        </button>
+        <p class="unmute-hint">البث شغّال — متصفحك بدّه ضغطة وحدة لتشغيل الصوت</p>
+    </div>
+
     <audio id="radioAudio" preload="none"></audio>
 
     <script>
         const RADIO_CONFIG = {
             streamUrl: <?= json_encode($radioConfig['stream_url']) ?>,
             stationName: <?= json_encode($radioConfig['station_name']) ?>,
+            zenoMount: <?= json_encode(zenoMount($radioConfig['stream_url'] ?? '')) ?>,
+            artwork: <?= json_encode($images[0] ?? '') ?>,
             apiUrl: <?= json_encode(SITE_URL . '/admin/ajax/save-radio.php') ?>
         };
     </script>
-    <script src="<?= e(SITE_URL) ?>/assets/js/radio.js"></script>
+    <script src="<?= e(SITE_URL) ?>/assets/js/radio.js?v=<?= e(assetVersion('/assets/js/radio.js')) ?>"></script>
 </body>
 </html>

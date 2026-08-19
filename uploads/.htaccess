@@ -1,0 +1,22 @@
+# مجلد الرفع: ملفات صور فقط، ممنوع تنفيذ أي سكربت هنا.
+# بدون هذا الملف، أي ملف .php يصل إلى المجلد يصبح ثغرة تنفيذ أوامر على السيرفر.
+
+<FilesMatch "\.(php|phtml|phar|php[0-9]|pl|py|cgi|sh|shtml|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# تعطيل محرّك PHP داخل المجلد (يعمل مع mod_php)
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+
+Options -Indexes -ExecCGI

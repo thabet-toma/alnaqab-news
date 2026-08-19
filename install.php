@@ -8,7 +8,8 @@
 // منع التشغيل إذا كان الموقع مثبتًا
 $configFile = __DIR__ . '/includes/config.php';
 if (!file_exists($configFile)) {
-    die('ملف config.php غير موجود. أنشئه أولاً.');
+    die('ملف includes/config.php غير موجود. انسخ القالب أولاً: '
+      . 'cp includes/config.example.php includes/config.php ثم عبّئ بيانات قاعدة البيانات والدومين.');
 }
 
 require_once $configFile;
@@ -47,7 +48,9 @@ try {
 }
 
 // معالجة النموذج
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error') {
+// ملاحظة أمنية: نرفض أي POST بعد اكتمال التثبيت ($step === 'done')، وإلا لتمكّن
+// أي زائر من استدعاء create_admin وإنشاء حساب مدير لنفسه على موقع شغّال.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'done') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'create_tables') {
@@ -158,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error') {
             $pdo->exec("INSERT IGNORE INTO radio_config (id, station_name, tagline, stream_url, description, images, ticker, ads)
                 VALUES (1, 'راديو النقب', 'صوت الصحراء ونبض المجتمع', 'https://ice1.somafm.com/groovesalad-128-mp3',
                 'راديو النقب — إذاعة عربية تبث على مدار الساعة من قلب الصحراء.',
-                '[{\"src\":\"https://picsum.photos/seed/negev-radio-1/900/560\"},{\"src\":\"https://picsum.photos/seed/negev-radio-2/900/560\"}]',
+                '[\"https://picsum.photos/seed/negev-radio-1/900/560\",\"https://picsum.photos/seed/negev-radio-2/900/560\"]',
                 '[\"أهلاً بكم في البث المباشر لراديو النقب\",\"شاركونا عبر صفحاتنا\"]',
                 '[{\"title\":\"إعلان تجريبي\",\"text\":\"هذا إعلان تجريبي للراديو\",\"image\":\"\",\"link\":\"\",\"active\":true}]'
             )");

@@ -319,6 +319,21 @@ a {
     border-color: var(--primary);
 }
 
+.form-hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.7;
+}
+
+.form-hint code {
+    background-color: var(--bg-dark);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
 .form-control-sm {
     padding: 6px 10px;
     font-size: 0.9rem;

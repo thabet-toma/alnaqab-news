@@ -251,6 +251,56 @@ function getRadioConfig(): array {
     return $config;
 }
 
+/**
+ * بصمة نسخة للملفات الثابتة (CSS/JS) حتى لا يخدم المتصفح نسخة قديمة بعد أي تعديل.
+ */
+function assetVersion(string $relativePath): string {
+    $full = __DIR__ . '/..' . $relativePath;
+    $time = @filemtime($full);
+    return $time ? (string)$time : '1';
+}
+
+/**
+ * تطبيع قائمة صور الراديو لمصفوفة روابط نصية.
+ * البيانات المخزّنة قد تكون ["url"] أو [{"src":"url"}] حسب مصدرها.
+ */
+function radioImages($raw): array {
+    if (is_string($raw)) $raw = json_decode($raw, true);
+    if (!is_array($raw)) return [];
+
+    $urls = [];
+    foreach ($raw as $item) {
+        if (is_string($item)) {
+            $url = trim($item);
+        } elseif (is_array($item)) {
+            $url = trim((string)($item['src'] ?? $item['url'] ?? $item['image'] ?? ''));
+        } else {
+            continue;
+        }
+        if ($url !== '') $urls[] = $url;
+    }
+    return $urls;
+}
+
+/**
+ * استخراج معرّف الـ mount من رابط بث Zeno.FM لاستخدامه مع الـ Metadata API.
+ * https://stream.zeno.fm/abc123  ->  abc123
+ * يرجّع '' لأي رابط بث آخر (Icecast عادي مثلاً) فتُعطّل ميزة "شو شغال هلق" بهدوء.
+ */
+function zenoMount(string $streamUrl): string {
+    $host = parse_url($streamUrl, PHP_URL_HOST) ?: '';
+    if (!preg_match('/(^|\.)zeno\.fm$/i', $host)) return '';
+
+    $path = trim(parse_url($streamUrl, PHP_URL_PATH) ?: '', '/');
+    if ($path === '') return '';
+
+    // البث قد يكون بصيغة "abc123" أو "abc123/source" أو "abc123.mp3"
+    $mount = explode('/', $path)[0];
+    $mount = preg_replace('/\.(mp3|aac|ogg)$/i', '', $mount);
+
+    return preg_match('/^[A-Za-z0-9_-]+$/', $mount) ? $mount : '';
+}
+
 /* ===== الإعدادات ===== */
 
 function getSetting(string $key, string $default = ''): string {
@@ -277,12 +327,34 @@ function articleImage(?string $image): string {
 }
 
 function uploadImage(array $file, string $subdir = 'articles'): ?string {
-    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!in_array($file['type'], $allowed)) return null;
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) return null;
     if ($file['size'] > 5 * 1024 * 1024) return null; // 5MB max
 
-    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-    $name = uniqid('img_') . '.' . $ext;
+    // نفحص النوع الحقيقي لمحتوى الملف، لا $file['type'] لأنه قادم من المتصفح
+    // وقابل للتزوير، ولا امتداد اسم الملف الأصلي (shell.php باسم صورة).
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        'image/gif'  => 'gif',
+    ];
+
+    $mime = null;
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $mime = finfo_file($finfo, $file['tmp_name']) ?: null;
+            finfo_close($finfo);
+        }
+    }
+    if ($mime === null) {
+        $info = @getimagesize($file['tmp_name']);
+        $mime = $info['mime'] ?? null;
+    }
+    if ($mime === null || !isset($allowed[$mime])) return null;
+
+    // الامتداد يُشتق من النوع الحقيقي، فلا يمكن حقن امتداد قابل للتنفيذ
+    $name = uniqid('img_', true) . '.' . $allowed[$mime];
     $dir = UPLOADS_PATH . $subdir . '/';
 
     if (!is_dir($dir)) mkdir($dir, 0755, true);

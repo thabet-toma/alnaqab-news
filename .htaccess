@@ -1,9 +1,16 @@
 # موقع النقب الإخباري — .htaccess
 
 # حماية الملفات الحساسة
-<FilesMatch "^(config\.php|db\.php|auth\.php|functions\.php)$">
-    Order deny,allow
-    Deny from all
+# نكتب الصيغتين: Apache 2.4 (Require) و 2.2 (Order/Deny) حتى يعمل الملف
+# على أي سيرفر دون الاعتماد على وحدة mod_access_compat.
+<FilesMatch "^(config\.php|config\.example\.php|db\.php|auth\.php|functions\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
 # منع تصفح المجلدات
@@ -34,10 +41,18 @@ Options -Indexes
 </IfModule>
 
 # حماية من الوصول لملفات النظام
-<FilesMatch "\.(env|log|sql|md)$">
-    Order deny,allow
-    Deny from all
+<FilesMatch "\.(env|log|sql|md|json|lock)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
 </FilesMatch>
+
+# منع الوصول لمجلد .git لو رُفع بالخطأ (يكشف كامل تاريخ الكود)
+RedirectMatch 404 /\.git
 
 # ترميز UTF-8
 AddDefaultCharset UTF-8

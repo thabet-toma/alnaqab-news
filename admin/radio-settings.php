@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $radio = getRadioConfig();
-$images_list = implode("\n", json_decode($radio['images'], true) ?? []);
+$images_list = implode("\n", radioImages($radio['images']));
 $ticker_list = implode("\n", json_decode($radio['ticker'], true) ?? []);
 $radio_ads = json_decode($radio['ads'], true) ?? [];
 ?>
@@ -120,7 +120,12 @@ $radio_ads = json_decode($radio['ads'], true) ?? [];
                             </div>
                             <div class="form-group">
                                 <label for="stream_url">رابط البث (Stream URL)</label>
-                                <input type="url" name="stream_url" id="stream_url" class="form-control" value="<?php echo e($radio['stream_url']); ?>" required>
+                                <input type="url" name="stream_url" id="stream_url" class="form-control" value="<?php echo e($radio['stream_url']); ?>" required dir="ltr">
+                                <small class="form-hint">
+                                    الصق هنا رابط الاستماع من لوحة تحكم Zeno.FM، شكله:
+                                    <code dir="ltr">https://stream.zeno.fm/xxxxxxxxxx</code><br>
+                                    مع روابط Zeno يظهر اسم المقطع الشغّال تلقائياً على صفحة الراديو.
+                                </small>
                             </div>
                             <div class="form-group">
                                 <label for="description">الوصف</label>

@@ -24,60 +24,202 @@ document.addEventListener('DOMContentLoaded', () => {
     const equalizer = document.getElementById('equalizer');
     const volumeSlider = document.getElementById('volumeSlider');
     const muteIcon = document.getElementById('muteIcon');
+    const onAirBadge = document.getElementById('onAirBadge');
+    const onAirText = document.getElementById('onAirText');
+    const unmuteOverlay = document.getElementById('unmuteOverlay');
+    const unmuteBtn = document.getElementById('unmuteBtn');
+
+    // مفتاح يتذكّر أن المستخدم وافق على الصوت سابقاً، فالزيارة الجاية تبدأ بصوت مباشرة
+    const CONSENT_KEY = 'radio:audioConsent';
+
     let isPlaying = false;
     let isConnecting = false;
+    let userStopped = false;   // أوقف المستخدم البث بنفسه؟ عندها لا نعيد الاتصال تلقائياً
+    let retryCount = 0;
+    let retryTimer = null;
 
-    if (audio && playBtn) {
-        audio.src = RADIO_CONFIG.streamUrl;
-        if(volumeSlider) audio.volume = volumeSlider.value;
+    function hasConsent() {
+        try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch (e) { return false; }
+    }
+    function rememberConsent() {
+        try { localStorage.setItem(CONSENT_KEY, '1'); } catch (e) { /* وضع التصفح الخاص */ }
+    }
 
-        function togglePlay() {
-            if (isConnecting) return;
+    // فصل الاتصال بالبث فعلياً. ملاحظة: audio.src = '' يجعل بعض المتصفحات
+    // تطلب رابط الصفحة نفسها كملف صوت، لذلك نزيل الخاصية بالكامل.
+    function detachStream() {
+        if (!audio) return;
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }
 
-            if (isPlaying) {
-                audio.pause();
-                audio.src = ''; // Force close connection
+    // البث الحي لا يُخزَّن مؤقتاً، ولا نضيف query string لأن بعض mounts ترفضه
+    function attachStream() {
+        if (!audio) return;
+        if (audio.getAttribute('src') !== RADIO_CONFIG.streamUrl) {
+            audio.src = RADIO_CONFIG.streamUrl;
+        }
+    }
+
+    async function startPlayback({ allowMuted = true } = {}) {
+        if (!audio || isConnecting) return false;
+
+        clearTimeout(retryTimer);
+        retryTimer = null; // لولا التصفير لاعتبرته scheduleReconnect محاولةً قائمة ولن يعيد الوصل أبداً
+        isConnecting = true;
+        userStopped = false;
+        if (statusText) statusText.textContent = 'جاري الاتصال...';
+        if (playIcon) playIcon.className = 'fas fa-spinner fa-spin';
+
+        attachStream();
+
+        try {
+            audio.muted = false;
+            await audio.play();
+            hideUnmuteOverlay();
+            rememberConsent();
+        } catch (err) {
+            // المتصفح منع الصوت. التشغيل المكتوم مسموح دائماً، فنبدأ مكتومين
+            // ونطلب من المستخدم ضغطة واحدة لفكّ الكتم.
+            if (!allowMuted) {
+                isConnecting = false;
                 isPlaying = false;
-                updateUIState();
-            } else {
-                isConnecting = true;
-                if(statusText) statusText.textContent = 'جاري الاتصال...';
-                if(playIcon) playIcon.className = 'fas fa-spinner fa-spin';
-                
-                audio.src = RADIO_CONFIG.streamUrl + '?t=' + new Date().getTime(); // Prevent caching
-                const playPromise = audio.play();
-                
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        isPlaying = true;
-                        isConnecting = false;
-                        updateUIState();
-                        setupMediaSession();
-                    }).catch(error => {
-                        console.error("Playback failed", error);
-                        isConnecting = false;
-                        isPlaying = false;
-                        if(statusText) statusText.textContent = 'خطأ في الاتصال بالبث';
-                        updateUIState();
-                        showToast('تعذر تشغيل البث');
-                    });
+                updateUIState(); // أولاً، ثم نستبدل الرسالة العامة برسالة الخطأ
+                if (statusText) statusText.textContent = 'تعذّر تشغيل البث';
+                showToast('تعذر تشغيل البث');
+                return false;
+            }
+            try {
+                audio.muted = true;
+                await audio.play();
+                showUnmuteOverlay();
+            } catch (err2) {
+                // بعض المتصفحات ترفض الوعد رغم أن التشغيل بدأ فعلاً (توفير الطاقة،
+                // أو انقطاع مؤقت)، لذلك نتحقق من الحالة الفعلية قبل إعلان الفشل.
+                if (!audio.paused) {
+                    showUnmuteOverlay();
+                } else {
+                    console.error('Playback failed', err2);
+                    isConnecting = false;
+                    isPlaying = false;
+                    updateUIState();
+                    if (statusText) statusText.textContent = 'اضغط زر التشغيل';
+                    return false;
                 }
             }
         }
 
-        function updateUIState() {
-            if (isPlaying) {
-                if(playIcon) playIcon.className = 'fas fa-pause';
-                if(statusText) statusText.textContent = 'مباشر الآن';
-                if(equalizer) equalizer.classList.add('playing');
-            } else {
-                if(playIcon) playIcon.className = 'fas fa-play';
-                if(statusText) statusText.textContent = 'جاهز للبث';
-                if(equalizer) equalizer.classList.remove('playing');
-            }
+        isConnecting = false;
+        isPlaying = true;
+        retryCount = 0;
+        updateUIState();
+        setupMediaSession();
+        return true;
+    }
+
+    function stopPlayback() {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        retryCount = 0;
+        userStopped = true;
+        isConnecting = false;
+        isPlaying = false;
+        detachStream();
+        hideUnmuteOverlay();
+        updateUIState();
+    }
+
+    function togglePlay() {
+        if (isConnecting) return;
+        if (isPlaying) stopPlayback();
+        else startPlayback({ allowMuted: false }); // ضغطة المستخدم تسمح بالصوت أصلاً
+    }
+
+    function updateUIState() {
+        if (isPlaying) {
+            if (playIcon) playIcon.className = 'fas fa-pause';
+            if (statusText) statusText.textContent = audio && audio.muted ? 'البث مكتوم' : 'مباشر الآن';
+            if (equalizer) equalizer.classList.add('playing');
+            if (onAirText) onAirText.textContent = 'على الهواء';
+            if (onAirBadge) onAirBadge.classList.remove('offline');
+        } else {
+            if (playIcon) playIcon.className = 'fas fa-play';
+            if (statusText) statusText.textContent = 'جاهز للبث';
+            if (equalizer) equalizer.classList.remove('playing');
+            if (onAirText) onAirText.textContent = 'غير متصل';
+            if (onAirBadge) onAirBadge.classList.add('offline');
         }
+    }
+
+    function showUnmuteOverlay() {
+        if (unmuteOverlay) unmuteOverlay.hidden = false;
+    }
+    function hideUnmuteOverlay() {
+        if (unmuteOverlay) unmuteOverlay.hidden = true;
+    }
+
+    // البث الحي ينقطع مع تذبذب الشبكة — نعيد الوصل تدريجياً بدل ترك الصفحة صامتة
+    function scheduleReconnect() {
+        if (userStopped || isConnecting || retryTimer) return;
+        retryCount++;
+        if (retryCount > 6) {
+            isPlaying = false;
+            updateUIState();
+            if (statusText) statusText.textContent = 'انقطع الاتصال — اضغط للمحاولة';
+            return;
+        }
+        const delay = Math.min(30000, 2000 * Math.pow(2, retryCount - 1));
+        if (statusText) statusText.textContent = `انقطع البث — إعادة المحاولة (${retryCount})`;
+        retryTimer = setTimeout(() => {
+            retryTimer = null;
+            detachStream();
+            startPlayback({ allowMuted: true });
+        }, delay);
+    }
+
+    if (audio && playBtn) {
+        if (volumeSlider) audio.volume = volumeSlider.value;
 
         playBtn.addEventListener('click', togglePlay);
+
+        if (unmuteBtn) {
+            unmuteBtn.addEventListener('click', () => {
+                audio.muted = false;
+                if (audio.volume === 0) {
+                    audio.volume = 1;
+                    if (volumeSlider) volumeSlider.value = 1;
+                    if (muteIcon) muteIcon.className = 'fas fa-volume-up';
+                }
+                rememberConsent();
+                hideUnmuteOverlay();
+                updateUIState();
+            });
+        }
+
+        audio.addEventListener('error', () => { if (isPlaying) scheduleReconnect(); });
+        audio.addEventListener('stalled', () => { if (isPlaying) scheduleReconnect(); });
+        audio.addEventListener('ended', () => { if (isPlaying) scheduleReconnect(); });
+
+        updateUIState();
+        autoStart();
+    }
+
+    // التشغيل التلقائي عند فتح الصفحة.
+    // كل المتصفحات تمنع الصوت التلقائي بلا تفاعل، لكن التشغيل المكتوم مسموح دائماً.
+    function autoStart() {
+        let policy = null;
+        if (typeof navigator.getAutoplayPolicy === 'function') {
+            try { policy = navigator.getAutoplayPolicy('mediaelement'); } catch (e) { /* غير مدعوم */ }
+        }
+
+        if (policy === 'disallowed' && !hasConsent()) {
+            // حتى المكتوم ممنوع — لا نجرّب ونترك الزر للمستخدم
+            if (statusText) statusText.textContent = 'اضغط زر التشغيل';
+            return;
+        }
+
+        startPlayback({ allowMuted: true });
     }
 
     // Volume Control
@@ -171,11 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (diff <= 0) {
             stopSleepTimer();
-            if (isPlaying && audio) audio.pause();
-            isPlaying = false;
-            if(statusText) statusText.textContent = 'جاهز للبث';
-            if(playIcon) playIcon.className = 'fas fa-play';
-            if(equalizer) equalizer.classList.remove('playing');
+            if (isPlaying) stopPlayback(); // يوقف البث ويمنع إعادة الاتصال التلقائي
             showToast('انتهى مؤقت النوم');
             return;
         }
@@ -279,32 +417,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 9. MediaSession API
+    // 9. MediaSession API — يتحكم بالبث من شاشة القفل وسماعات البلوتوث
+    let currentTrack = '';
+
     function setupMediaSession() {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: RADIO_CONFIG.stationName,
-                artist: 'البث المباشر',
-                artwork: [
-                    { src: '/assets/images/logo.png', sizes: '512x512', type: 'image/png' }
-                ]
-            });
+        if (!('mediaSession' in navigator)) return;
 
-            navigator.mediaSession.setActionHandler('play', togglePlay);
-            navigator.mediaSession.setActionHandler('pause', togglePlay);
+        // نستخدم أول صورة من صور المحطة. لا نضع مساراً ثابتاً لملف قد لا يوجد،
+        // لأن ذلك يسبب طلباً فاشلاً (404) مع كل تحديث للبيانات.
+        const meta = {
+            title: currentTrack || RADIO_CONFIG.stationName,
+            artist: currentTrack ? RADIO_CONFIG.stationName : 'البث المباشر'
+        };
+        if (RADIO_CONFIG.artwork) {
+            meta.artwork = [{ src: RADIO_CONFIG.artwork, sizes: '512x512' }];
         }
+        navigator.mediaSession.metadata = new MediaMetadata(meta);
+
+        navigator.mediaSession.setActionHandler('play', togglePlay);
+        navigator.mediaSession.setActionHandler('pause', togglePlay);
     }
 
-    // Mock Listeners count
-    const listenerCountEl = document.getElementById('listenerCount');
-    if (listenerCountEl) {
-        setInterval(() => {
-            if (isPlaying) {
-                const base = 120;
-                const fluctuation = Math.floor(Math.random() * 15) - 7;
-                listenerCountEl.textContent = base + fluctuation;
-            }
-        }, 10000);
-        listenerCountEl.textContent = Math.floor(Math.random() * 20) + 100;
+    // 10. "شو شغّال هلق" عبر Metadata API الخاص بـ Zeno.FM (Server-Sent Events)
+    const nowPlayingBadge = document.getElementById('nowPlayingBadge');
+    const nowPlayingText = document.getElementById('nowPlayingText');
+
+    function applyNowPlaying(title) {
+        title = (title || '').trim();
+        if (title === currentTrack) return;
+        currentTrack = title;
+
+        if (nowPlayingBadge && nowPlayingText) {
+            nowPlayingText.textContent = title;
+            nowPlayingBadge.hidden = title === '';
+        }
+        if (isPlaying) setupMediaSession();
     }
+
+    function initNowPlaying() {
+        // يعمل فقط مع روابط Zeno.FM؛ أي مصدر بث آخر يتجاهل الميزة بهدوء
+        if (!RADIO_CONFIG.zenoMount || typeof EventSource === 'undefined') return;
+
+        let source;
+        try {
+            source = new EventSource(
+                'https://api.zeno.fm/mounts/metadata/subscribe/' + encodeURIComponent(RADIO_CONFIG.zenoMount)
+            );
+        } catch (e) {
+            return; // لا نكسر الصفحة إذا فشل الاتصال بالـ API
+        }
+
+        source.addEventListener('message', (event) => {
+            let data;
+            try { data = JSON.parse(event.data); } catch (e) { return; }
+            applyNowPlaying(data.streamTitle || data.title || '');
+        });
+
+        // EventSource يعيد الاتصال تلقائياً، فنكتفي بإخفاء الشارة عند الانقطاع
+        source.addEventListener('error', () => applyNowPlaying(''));
+    }
+
+    initNowPlaying();
 });

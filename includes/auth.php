@@ -8,9 +8,16 @@ require_once __DIR__ . '/db.php';
 
 // بدء الجلسة إذا لم تكن مبدوءة
 if (session_status() === PHP_SESSION_NONE) {
+    // على HTTPS نضع secure حتى لا يُرسل كوكي الجلسة عبر اتصال غير مشفّر.
+    // نراعي أيضاً الحالة التي يقف فيها بروكسي/CDN أمام السيرفر.
+    $isHttps = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        || (($_SERVER['SERVER_PORT'] ?? '') == 443);
+
     session_set_cookie_params([
-        'lifetime' => SESSION_LIFETIME,
-        'path'     => '/',
+        'lifetime'  => SESSION_LIFETIME,
+        'path'      => '/',
+        'secure'    => $isHttps,
         'httponly'  => true,
         'samesite'  => 'Lax'
     ]);
