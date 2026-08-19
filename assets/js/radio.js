@@ -454,9 +454,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isPlaying) setupMediaSession();
     }
 
+    // مصدر البث الذاتي (Icecast على نفس السيرفر): نسأل نقطة PHP عندنا،
+    // لأن Icecast مربوط على 127.0.0.1 ولا يمكن للمتصفح قراءته مباشرة.
+    function initNowPlayingLocal() {
+        if (!RADIO_CONFIG.nowPlayingUrl) return;
+
+        const poll = async () => {
+            try {
+                const res = await fetch(RADIO_CONFIG.nowPlayingUrl, { cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                applyNowPlaying(data.title || '');
+            } catch (e) {
+                // انقطاع مؤقت — نترك العنوان السابق ونحاول لاحقاً
+            }
+        };
+
+        poll();
+        setInterval(poll, 15000);
+    }
+
     function initNowPlaying() {
-        // يعمل فقط مع روابط Zeno.FM؛ أي مصدر بث آخر يتجاهل الميزة بهدوء
-        if (!RADIO_CONFIG.zenoMount || typeof EventSource === 'undefined') return;
+        // مع Zeno.FM نستخدم بثّهم اللحظي (SSE)
+        if (!RADIO_CONFIG.zenoMount || typeof EventSource === 'undefined') {
+            initNowPlayingLocal();
+            return;
+        }
 
         let source;
         try {
@@ -464,7 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 'https://api.zeno.fm/mounts/metadata/subscribe/' + encodeURIComponent(RADIO_CONFIG.zenoMount)
             );
         } catch (e) {
-            return; // لا نكسر الصفحة إذا فشل الاتصال بالـ API
+            initNowPlayingLocal(); // لا نكسر الصفحة إذا فشل الاتصال بالـ API
+            return;
         }
 
         source.addEventListener('message', (event) => {

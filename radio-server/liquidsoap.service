@@ -1,0 +1,15 @@
+[Unit]
+Description=Radio Al-Naqab (Liquidsoap AutoDJ + live input)
+After=network.target icecast2.service
+Wants=icecast2.service
+
+[Service]
+Type=simple
+User=liquidsoap
+Group=liquidsoap
+ExecStart=/usr/bin/liquidsoap /srv/radio/radio.liq
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

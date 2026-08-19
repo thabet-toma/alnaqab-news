@@ -122,9 +122,10 @@ $radio_ads = json_decode($radio['ads'], true) ?? [];
                                 <label for="stream_url">رابط البث (Stream URL)</label>
                                 <input type="url" name="stream_url" id="stream_url" class="form-control" value="<?php echo e($radio['stream_url']); ?>" required dir="ltr">
                                 <small class="form-hint">
-                                    الصق هنا رابط الاستماع من لوحة تحكم Zeno.FM، شكله:
-                                    <code dir="ltr">https://stream.zeno.fm/xxxxxxxxxx</code><br>
-                                    مع روابط Zeno يظهر اسم المقطع الشغّال تلقائياً على صفحة الراديو.
+                                    إذا ركّبت الراديو على سيرفرك، الرابط هو:
+                                    <code dir="ltr">https://دومينك/stream</code><br>
+                                    لازم يبدأ بـ <code dir="ltr">https</code> — الروابط بـ
+                                    <code dir="ltr">http</code> يحجبها المتصفح ولا يخرج صوت.
                                 </small>
                             </div>
                             <div class="form-group">
