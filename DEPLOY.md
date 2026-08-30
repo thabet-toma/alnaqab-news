@@ -17,7 +17,7 @@ Hello,
 I need a small VPS to host a PHP website. Please set up:
 
 - OS: Ubuntu 24.04 LTS (or 22.04 LTS)
-- Plan: 1 vCPU, 2 GB RAM, 25 GB SSD (smallest plan is fine)
+- Plan: 1 vCPU, 4 GB RAM, 25 GB SSD
 - Web server: Apache 2.4
 - PHP 8.2+ with extensions: pdo_mysql, mbstring, fileinfo, json
 - Database: MySQL 8 or MariaDB 10.6+

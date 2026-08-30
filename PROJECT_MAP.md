@@ -42,7 +42,9 @@ M4 Radio: 4 files — DONE
 | كلمات السر | `/root/.icecast-credentials` (chmod 600، خارج git) |
 | ربط الدومين | nginx (لا Apache) — `location /stream` في `/etc/nginx/sites-available/radio.ktra-pro.tech` يعمل proxy_pass إلى `127.0.0.1:8010/radio` |
 | رابط البث العام | `https://radio.ktra-pro.tech/stream` — محفوظ في `radio_config.stream_url` بقاعدة البيانات |
-| ⚠️ معلّق | مجلد `/srv/radio/music` فاضي — البث حاليًا صمت. ارفع ملفات mp3 له. |
+| المكتبة | `/srv/radio/music` — 5 ملفات محلية + 3 في `cloud/` (مقيس 2026-08-30) |
+| الموارد المقيسة | نواة واحدة · رام 3915 م.ب · ⚠️ **السواب ممتلئ 2046/2047، المتاح 974 م.ب** |
+| إصدارات مقيسة | Liquidsoap 2.2.4 · ffmpeg 6.1.1 · PHP 8.3.6 · `ufw` معطّل |
 
 > ملاحظة: `radio-server/README.md` بالريبو مكتوب لسيرفر Apache على منفذ 8000 —
 > هذا السيرفر Nginx والمنفذ الفعلي 8010. اعتمد على هذا الجدول لا على الملف عند أي صيانة مستقبلية.
