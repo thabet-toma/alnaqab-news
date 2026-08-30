@@ -1,0 +1,205 @@
+/* ===== صفحات إدارة الراديو: المكتبة والجدولة ===== */
+
+/* شريط حالة البث أعلى الصفحة */
+.radio-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    flex-wrap: wrap;
+    background: #0d1b2a;
+    border: 1px solid #2a3a4a;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+}
+
+.radio-status-bar.is-down {
+    border-color: #7a2a2a;
+    background: #1b0d0d;
+}
+
+.status-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.status-hint {
+    color: #8fa3b8;
+    font-size: 0.9rem;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.status-dot.live {
+    background: #e63946;
+    animation: statusPulse 1.4s ease-in-out infinite;
+}
+
+.status-dot.auto { background: #2a9d8f; }
+.status-dot.down { background: #7a2a2a; }
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1;   transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(1.25); }
+}
+
+/* احترام تفضيل تقليل الحركة */
+@media (prefers-reduced-motion: reduce) {
+    .status-dot.live { animation: none; }
+}
+
+/* ===== جدول المقاطع ===== */
+.table-wrap {
+    overflow-x: auto;
+}
+
+.tracks-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 560px;
+}
+
+.tracks-table th,
+.tracks-table td {
+    padding: 10px 12px;
+    text-align: right;
+    border-bottom: 1px solid #2a3a4a;
+    vertical-align: middle;
+}
+
+.tracks-table th {
+    color: #8fa3b8;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.tracks-table tbody tr:hover {
+    background: #0d1b2a;
+}
+
+.tracks-table .num {
+    white-space: nowrap;
+    color: #8fa3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.tracks-table .time-cell {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #e9ecef;
+}
+
+.tracks-table .row-off {
+    opacity: 0.5;
+}
+
+.tracks-table .actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* حقل الاسم القابل للتعديل مباشرة داخل الجدول */
+.title-input {
+    background: transparent;
+    border: 1px solid transparent;
+    width: 100%;
+    min-width: 160px;
+}
+
+.title-input:hover {
+    border-color: #2a3a4a;
+}
+
+.title-input:focus {
+    background: #0d1b2a;
+    border-color: #457b9d;
+}
+
+/* نماذج مضمّنة داخل خلايا الجدول */
+.inline-form,
+.rename-form {
+    display: inline;
+    margin: 0;
+}
+
+/* ===== شارات الحالة ===== */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.badge-on {
+    background: rgba(42, 157, 143, 0.15);
+    color: #2a9d8f;
+}
+
+.badge-off {
+    background: rgba(143, 163, 184, 0.15);
+    color: #8fa3b8;
+}
+
+.badge-cloud {
+    background: rgba(69, 123, 157, 0.2);
+    color: #7eb3d8;
+}
+
+/* ===== شبكة أيام الأسبوع ===== */
+.days-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.day-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #0d1b2a;
+    border: 1px solid #2a3a4a;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.day-check:hover {
+    border-color: #457b9d;
+}
+
+.day-check input {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ===== متفرقات ===== */
+.empty-note {
+    color: #8fa3b8;
+    padding: 20px 0;
+    text-align: center;
+}
+
+.panel-sep {
+    border: 0;
+    border-top: 1px solid #2a3a4a;
+    margin: 18px 0 14px;
+}
+
+@media (max-width: 600px) {
+    .days-grid { grid-template-columns: 1fr; }
+    .radio-status-bar { flex-direction: column; align-items: flex-start; }
+}

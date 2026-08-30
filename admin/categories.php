@@ -90,6 +90,8 @@ $categories = $stmt->fetchAll();
                 <a href="categories.php" class="active">الأقسام</a>
                 <a href="ads.php">الإعلانات</a>
                 <a href="radio-settings.php">إعدادات الراديو</a>
+                <a href="radio-library.php">مكتبة الصوتيات</a>
+                <a href="radio-schedule.php">جدولة البث</a>
                 <a href="settings.php">الإعدادات العامة</a>
                 <a href="index.php?action=logout" class="text-danger">تسجيل الخروج</a>
             </nav>
