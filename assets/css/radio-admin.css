@@ -172,6 +172,34 @@
     margin-inline-start: 8px;
 }
 
+/* شارة نوع هدف الموعد في جدول الجدولة */
+.badge-type-playlist {
+    background: rgba(69, 123, 157, 0.2);
+    color: #7eb3d8;
+    margin-inline-end: 8px;
+}
+
+.badge-type-track {
+    background: rgba(143, 163, 184, 0.15);
+    color: #8fa3b8;
+    margin-inline-end: 8px;
+}
+
+/* ملاحظة تكرار البلاي ليست — إعلام هادئ لا خطأ */
+.repeat-warning {
+    color: #e9c46a;
+    font-size: 0.82rem;
+    margin-top: 4px;
+}
+
+/* مُبدّل نوع الهدف في نموذج إضافة موعد */
+.target-type-choice {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
 /* زرّ الحذف النهائي — لا رجعة فيه، فنميّزه بمخطط بدل تعبئة كاملة */
 .btn-purge {
     background: transparent;
