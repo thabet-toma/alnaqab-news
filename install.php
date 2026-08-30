@@ -110,32 +110,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-            CREATE TABLE IF NOT EXISTS radio_config (
-                id INT PRIMARY KEY DEFAULT 1,
-                station_name VARCHAR(100) DEFAULT 'راديو النقب',
-                tagline VARCHAR(200) DEFAULT 'صوت الصحراء ونبض المجتمع',
-                stream_url VARCHAR(500) DEFAULT 'https://ice1.somafm.com/groovesalad-128-mp3',
-                description TEXT,
-                images JSON,
-                ticker JSON,
-                ads JSON,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
             CREATE TABLE IF NOT EXISTS radio_tracks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 filename VARCHAR(255) NOT NULL,
                 title VARCHAR(255) NOT NULL,
                 source ENUM('local','cloud') NOT NULL DEFAULT 'local',
+                status ENUM('ok','missing') NOT NULL DEFAULT 'ok',
                 duration INT DEFAULT NULL COMMENT 'بالثواني',
                 filesize INT UNSIGNED DEFAULT NULL,
                 uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY filename (filename)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+            CREATE TABLE IF NOT EXISTS radio_playlists (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                description VARCHAR(255) NOT NULL DEFAULT '',
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                is_managed TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'تُبنى آلياً ولا تُحرَّر يدوياً',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_playlist_name (name)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_config (
+                id INT PRIMARY KEY DEFAULT 1,
+                station_name VARCHAR(100) DEFAULT 'راديو النقب',
+                tagline VARCHAR(200) DEFAULT 'صوت الصحراء ونبض المجتمع',
+                stream_url VARCHAR(500) DEFAULT 'https://ice1.somafm.com/groovesalad-128-mp3',
+                default_playlist_id INT NULL,
+                description TEXT,
+                images JSON,
+                ticker JSON,
+                ads JSON,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_config_default_playlist FOREIGN KEY (default_playlist_id)
+                    REFERENCES radio_playlists (id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
             CREATE TABLE IF NOT EXISTS radio_schedule (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                track_id INT NOT NULL,
+                track_id INT NULL,
+                playlist_id INT NULL,
                 play_at TIME NOT NULL COMMENT 'ساعة التشغيل',
                 days VARCHAR(20) NOT NULL DEFAULT '' COMMENT 'أيام الأسبوع 0=الأحد مفصولة بفواصل، فاضي = كل يوم',
                 active TINYINT(1) NOT NULL DEFAULT 1,
@@ -144,7 +160,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 KEY fk_schedule_track (track_id),
                 KEY idx_active_time (active, play_at),
                 CONSTRAINT fk_schedule_track FOREIGN KEY (track_id)
-                    REFERENCES radio_tracks (id) ON DELETE CASCADE
+                    REFERENCES radio_tracks (id) ON DELETE CASCADE,
+                CONSTRAINT fk_schedule_playlist FOREIGN KEY (playlist_id)
+                    REFERENCES radio_playlists (id) ON DELETE CASCADE,
+                CONSTRAINT chk_schedule_target CHECK ((track_id IS NULL) <> (playlist_id IS NULL))
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_playlist_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                playlist_id INT NOT NULL,
+                track_id INT NOT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                KEY idx_playlist_order (playlist_id, sort_order),
+                KEY fk_item_track (track_id),
+                CONSTRAINT fk_item_playlist FOREIGN KEY (playlist_id) REFERENCES radio_playlists (id) ON DELETE CASCADE,
+                CONSTRAINT fk_item_track FOREIGN KEY (track_id) REFERENCES radio_tracks (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 

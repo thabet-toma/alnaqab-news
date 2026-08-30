@@ -97,5 +97,50 @@ M4 Radio: 4 files — DONE
 - `install.php` — بيانات صور الراديو الأولية كانت بشكل `[{"src":…}]` مخالف لما تحفظه لوحة التحكم.
 - `includes/config.php` + `includes/db.php` — دعم `DB_PORT` وتحميل `config.local.php`.
 
+## [SCHEMA — ترقية البلاي ليست]
+لا يوجد نظام migrations؛ الجداول موجودة أصلاً على السيرفر الحيّ فـ
+`CREATE TABLE IF NOT EXISTS` في `install.php` لن يعدّلها. الصق هذه الكتلة على
+السيرفر يدوياً. `radio_playlists` يُنشأ أولاً لأن الثلاثة الباقية تشير إليه
+بمفاتيح أجنبية.
+
+```sql
+CREATE TABLE IF NOT EXISTS radio_playlists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    is_managed TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'تُبنى آلياً ولا تُحرَّر يدوياً',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_playlist_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS radio_playlist_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    playlist_id INT NOT NULL,
+    track_id INT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    KEY idx_playlist_order (playlist_id, sort_order),
+    KEY fk_item_track (track_id),
+    CONSTRAINT fk_item_playlist FOREIGN KEY (playlist_id) REFERENCES radio_playlists (id) ON DELETE CASCADE,
+    CONSTRAINT fk_item_track FOREIGN KEY (track_id) REFERENCES radio_tracks (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE radio_tracks
+    ADD COLUMN status ENUM('ok','missing') NOT NULL DEFAULT 'ok' AFTER source;
+
+ALTER TABLE radio_config
+    ADD COLUMN default_playlist_id INT NULL AFTER stream_url,
+    ADD CONSTRAINT fk_config_default_playlist FOREIGN KEY (default_playlist_id)
+        REFERENCES radio_playlists (id) ON DELETE SET NULL;
+
+ALTER TABLE radio_schedule
+    MODIFY COLUMN track_id INT NULL,
+    ADD COLUMN playlist_id INT NULL AFTER track_id,
+    ADD CONSTRAINT fk_schedule_playlist FOREIGN KEY (playlist_id)
+        REFERENCES radio_playlists (id) ON DELETE CASCADE,
+    ADD CONSTRAINT chk_schedule_target CHECK ((track_id IS NULL) <> (playlist_id IS NULL));
+```
+
 ## [ORPHANS & PENDING]
 - None. All tasks completed successfully.
