@@ -89,6 +89,7 @@ $radio_ads = json_decode($radio['ads'], true) ?? [];
                 <a href="ads.php">الإعلانات</a>
                 <a href="radio-settings.php" class="active">إعدادات الراديو</a>
                 <a href="radio-library.php">مكتبة الصوتيات</a>
+                <a href="radio-playlists.php">البلاي ليست</a>
                 <a href="radio-schedule.php">جدولة البث</a>
                 <a href="settings.php">الإعدادات العامة</a>
                 <a href="index.php?action=logout" class="text-danger">تسجيل الخروج</a>

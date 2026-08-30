@@ -13,6 +13,9 @@
 if (!defined('RADIO_SOCKET'))    define('RADIO_SOCKET', '/srv/radio/liquidsoap.sock');
 if (!defined('RADIO_MUSIC_DIR')) define('RADIO_MUSIC_DIR', '/srv/radio/music');
 
+/** مجلد ملفات .m3u المشتقّة من البلاي ليست في قاعدة البيانات */
+if (!defined('RADIO_PLAYLIST_DIR')) define('RADIO_PLAYLIST_DIR', '/srv/radio/playlists');
+
 /**
  * مجلد فرعي داخل مجلد الأغاني تُنسخ إليه ملفات Google Drive دورياً.
  * Liquidsoap يمسح المجلدات الفرعية تلقائياً فتدخل الدورة بلا إعداد إضافي.
@@ -302,4 +305,49 @@ function uploadTrack(array $file, string $title = ''): array {
     ]);
 
     return [true, 'تم رفع المقطع بنجاح'];
+}
+
+/**
+ * يكتب ملف .m3u لبلاي ليست معيّنة، مشتقّاً بالكامل من قاعدة البيانات — الملف
+ * نتيجة لا مصدر (Liquidsoap لا يقرأه بعد؛ ذلك موضوع مهمة لاحقة). يستبعد أي
+ * مقطع `status = 'missing'` فلا يحوي الملف إلا مسارات صالحة على القرص.
+ *
+ * الكتابة ذرّية: نكتب في ملف مؤقّت بنفس المجلد ثم ننقله بـ rename() فوق
+ * الملف النهائي، لأن أي كتابة مباشرة قد يقرأها المحرّك في اللحظة نفسها
+ * فيرى ملفاً نصف مكتوب.
+ *
+ * ترجّع false بهدوء دون رمي استثناء إن تعذّرت الكتابة (مجلد غير موجود على
+ * بيئة التطوير مثلاً) — لا نلمس قاعدة البيانات أصلاً في هذه الحالة.
+ */
+function writePlaylistM3u(int $playlistId): bool {
+    $dir = rtrim(RADIO_PLAYLIST_DIR, '/');
+    if (!is_dir($dir) || !is_writable($dir)) return false;
+
+    $stmt = db()->prepare(
+        "SELECT t.filename
+           FROM radio_playlist_items i
+           JOIN radio_tracks t ON t.id = i.track_id
+          WHERE i.playlist_id = ? AND t.status = 'ok'
+          ORDER BY i.sort_order, i.id"
+    );
+    $stmt->execute([$playlistId]);
+    $filenames = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $musicBase = rtrim(RADIO_MUSIC_DIR, '/');
+    $lines = ['#EXTM3U'];
+    foreach ($filenames as $filename) {
+        $lines[] = $musicBase . '/' . $filename;
+    }
+    $content = implode("\n", $lines) . "\n";
+
+    // اسم الملف مبني من رقم صحيح، فلا خطر حقن مسار
+    $final = $dir . '/' . $playlistId . '.m3u';
+    $tmp   = $dir . '/.' . $playlistId . '-' . bin2hex(random_bytes(4)) . '.tmp';
+
+    if (@file_put_contents($tmp, $content) === false) return false;
+    if (!@rename($tmp, $final)) {
+        @unlink($tmp);
+        return false;
+    }
+    return true;
 }
