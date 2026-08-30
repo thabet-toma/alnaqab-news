@@ -61,6 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'move_up' || $action === 'move_down') {
         $itemId = (int) ($_POST['item_id'] ?? 0);
 
+        // قفل صفّ البلاي ليست نفسه (لا صفوف العناصر) يسلسل محرّرَين متزامنين
+        // يبدّلان sort_order في نفس اللحظة، بدل أن يتداخل تحديثاهما
+        $db->beginTransaction();
+        $db->prepare('SELECT id FROM radio_playlists WHERE id = ? FOR UPDATE')->execute([$playlistId]);
+
         $ordered = $db->prepare('SELECT id, sort_order FROM radio_playlist_items WHERE playlist_id = ? ORDER BY sort_order, id');
         $ordered->execute([$playlistId]);
         $rows = $ordered->fetchAll();
@@ -78,8 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $update = $db->prepare('UPDATE radio_playlist_items SET sort_order = ? WHERE id = ?');
             $update->execute([$b['sort_order'], $a['id']]);
             $update->execute([$a['sort_order'], $b['id']]);
+            $db->commit();
             writePlaylistM3u($playlistId);
             $success = 'تم تحريك المقطع';
+        } else {
+            $db->commit();
         }
     }
 }
@@ -162,41 +170,51 @@ foreach ($items as $it) {
                             <?php if (empty($items)): ?>
                                 <p class="empty-note">لا يوجد أي مقطع في هذه البلاي ليست بعد.</p>
                             <?php else: ?>
-                                <div class="table-wrap">
-                                <table class="tracks-table">
-                                    <thead>
-                                        <tr>
-                                            <th>الترتيب</th>
-                                            <th>المقطع</th>
-                                            <th>المدة</th>
-                                            <?php if (!$isManaged): ?><th>إجراءات</th><?php endif; ?>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                                <div id="playlistLiveRegion" class="sr-only" aria-live="polite"></div>
+
+                                <div class="playlist-list-wrap">
+                                    <div class="playlist-list-header" aria-hidden="true">
+                                        <?php if (!$isManaged): ?><span class="playlist-col-handle"></span><?php endif; ?>
+                                        <span class="playlist-col-num">الترتيب</span>
+                                        <span class="playlist-col-title">المقطع</span>
+                                        <span class="playlist-col-duration">المدة</span>
+                                        <?php if (!$isManaged): ?><span class="playlist-col-actions">إجراءات</span><?php endif; ?>
+                                    </div>
+
+                                    <ul class="playlist-list" id="playlistList"
+                                        data-playlist-id="<?php echo (int) $playlistId; ?>"
+                                        data-csrf="<?php echo e(csrfToken()); ?>">
                                     <?php foreach ($items as $pos => $it): ?>
                                         <?php $isMissing = $it['status'] === 'missing'; ?>
-                                        <tr class="<?php echo $isMissing ? 'is-missing' : ''; ?>">
-                                            <td class="num"><?php echo $pos + 1; ?></td>
-                                            <td>
+                                        <li class="playlist-item <?php echo $isMissing ? 'is-missing' : ''; ?>"
+                                            data-item-id="<?php echo (int) $it['id']; ?>">
+                                            <?php if (!$isManaged): ?>
+                                            <button type="button" class="drag-handle"
+                                                    aria-label="اسحب لإعادة ترتيب «<?php echo e($it['title']); ?>»، أو استخدم زرّي أعلى وأسفل">
+                                                <span aria-hidden="true">⠿</span>
+                                            </button>
+                                            <?php endif; ?>
+                                            <span class="playlist-col-num playlist-item-num"><?php echo $pos + 1; ?></span>
+                                            <span class="playlist-col-title playlist-item-title">
                                                 <?php echo e($it['title']); ?>
                                                 <?php if ($isMissing): ?>
                                                     <span class="badge badge-missing" title="الملف غير موجود على القرص حالياً">مفقود</span>
                                                 <?php endif; ?>
-                                            </td>
-                                            <td class="num"><?php echo formatDuration($it['duration'] !== null ? (int) $it['duration'] : null); ?></td>
+                                            </span>
+                                            <span class="playlist-col-duration playlist-item-duration"><?php echo formatDuration($it['duration'] !== null ? (int) $it['duration'] : null); ?></span>
                                             <?php if (!$isManaged): ?>
-                                            <td class="actions">
+                                            <span class="playlist-col-actions">
                                                 <form method="POST" class="inline-form">
                                                     <?php echo csrfField(); ?>
                                                     <input type="hidden" name="action" value="move_up">
                                                     <input type="hidden" name="item_id" value="<?php echo (int) $it['id']; ?>">
-                                                    <button type="submit" class="btn btn-ghost btn-sm" <?php echo $pos === 0 ? 'disabled' : ''; ?>>أعلى</button>
+                                                    <button type="submit" class="btn btn-ghost btn-sm move-up-btn" <?php echo $pos === 0 ? 'disabled' : ''; ?>>أعلى</button>
                                                 </form>
                                                 <form method="POST" class="inline-form">
                                                     <?php echo csrfField(); ?>
                                                     <input type="hidden" name="action" value="move_down">
                                                     <input type="hidden" name="item_id" value="<?php echo (int) $it['id']; ?>">
-                                                    <button type="submit" class="btn btn-ghost btn-sm" <?php echo $pos === count($items) - 1 ? 'disabled' : ''; ?>>أسفل</button>
+                                                    <button type="submit" class="btn btn-ghost btn-sm move-down-btn" <?php echo $pos === count($items) - 1 ? 'disabled' : ''; ?>>أسفل</button>
                                                 </form>
                                                 <form method="POST" class="inline-form"
                                                       onsubmit="return confirm('إزالة «<?php echo e($it['title']); ?>» من البلاي ليست؟');">
@@ -205,13 +223,19 @@ foreach ($items as $it) {
                                                     <input type="hidden" name="item_id" value="<?php echo (int) $it['id']; ?>">
                                                     <button type="submit" class="btn btn-danger btn-sm">إزالة</button>
                                                 </form>
-                                            </td>
+                                            </span>
                                             <?php endif; ?>
-                                        </tr>
+                                        </li>
                                     <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                    </ul>
                                 </div>
+
+                                <?php if (!$isManaged): ?>
+                                <div class="playlist-save-bar" id="playlistSaveBar" hidden>
+                                    <span>تم تغيير الترتيب بالسحب — لم يُحفظ بعد.</span>
+                                    <button type="button" class="btn btn-primary btn-sm" id="savePlaylistOrderBtn">احفظ الترتيب</button>
+                                </div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -261,5 +285,8 @@ foreach ($items as $it) {
     </div>
 
     <script src="<?php echo SITE_URL; ?>/assets/js/admin.js"></script>
+    <?php if (!$isManaged && !empty($items)): ?>
+    <script src="<?php echo SITE_URL; ?>/assets/js/radio-playlist.js?v=<?php echo assetVersion('/assets/js/radio-playlist.js'); ?>"></script>
+    <?php endif; ?>
 </body>
 </html>
