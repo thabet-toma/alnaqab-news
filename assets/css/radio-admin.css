@@ -103,6 +103,15 @@
     opacity: 0.5;
 }
 
+/* صفّ المقطع الذي اختفى ملفّه من القرص */
+.tracks-table tr.is-missing {
+    background: rgba(230, 57, 70, 0.08);
+}
+
+.tracks-table tr.is-missing:hover {
+    background: rgba(230, 57, 70, 0.14);
+}
+
 .tracks-table .actions {
     display: flex;
     gap: 6px;
@@ -155,6 +164,24 @@
 .badge-cloud {
     background: rgba(69, 123, 157, 0.2);
     color: #7eb3d8;
+}
+
+.badge-missing {
+    background: rgba(230, 57, 70, 0.15);
+    color: #e63946;
+    margin-inline-start: 8px;
+}
+
+/* زرّ الحذف النهائي — لا رجعة فيه، فنميّزه بمخطط بدل تعبئة كاملة */
+.btn-purge {
+    background: transparent;
+    border: 1px solid var(--danger, #e63946);
+    color: var(--danger, #e63946);
+}
+
+.btn-purge:hover {
+    background: var(--danger, #e63946);
+    color: white;
 }
 
 /* ===== شبكة أيام الأسبوع ===== */

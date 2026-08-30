@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ok) { $success = $msg; } else { $error = $msg; }
 
     } elseif ($action === 'delete') {
+        // يحذف الملف من القرص فقط ويعلّم السجلّ "مفقود" — السجلّ وعضويته
+        // في البلاي ليست يبقيان قائمين
         $id    = (int) ($_POST['id'] ?? 0);
         $track = $db->prepare('SELECT filename, source FROM radio_tracks WHERE id = ?');
         $track->execute([$id]);
@@ -40,8 +42,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($real && $base && str_starts_with($real, $base . '/')) {
                 @unlink($real);
             }
+            $db->prepare("UPDATE radio_tracks SET status = 'missing' WHERE id = ?")->execute([$id]);
+            $success = 'تم حذف الملف وتعليم المقطع كمفقود';
+        } else {
+            $error = $error ?: 'المقطع غير موجود';
+        }
+
+    } elseif ($action === 'purge') {
+        // يمحو السجلّ نهائياً من قاعدة البيانات — لا رجعة، وتُحذف عضوياته
+        // في البلاي ليست ومواعيده تلقائياً بـ ON DELETE CASCADE
+        $id    = (int) ($_POST['id'] ?? 0);
+        $track = $db->prepare('SELECT filename FROM radio_tracks WHERE id = ?');
+        $track->execute([$id]);
+        $row = $track->fetch();
+
+        if ($row) {
+            $path = rtrim(RADIO_MUSIC_DIR, '/') . '/' . $row['filename'];
+            $real = realpath($path);
+            $base = realpath(RADIO_MUSIC_DIR);
+            if ($real && $base && str_starts_with($real, $base . '/')) {
+                @unlink($real);
+            }
             $db->prepare('DELETE FROM radio_tracks WHERE id = ?')->execute([$id]);
-            $success = 'تم حذف المقطع';
+            $success = 'تم حذف المقطع نهائياً';
         } else {
             $error = 'المقطع غير موجود';
         }
@@ -181,8 +204,11 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
                                     </thead>
                                     <tbody>
                                     <?php foreach ($tracks as $t): ?>
-                                        <?php $isCloud = ($t['source'] ?? 'local') === 'cloud'; ?>
-                                        <tr>
+                                        <?php
+                                        $isCloud   = ($t['source'] ?? 'local') === 'cloud';
+                                        $isMissing = ($t['status'] ?? 'ok') === 'missing';
+                                        ?>
+                                        <tr class="<?php echo $isMissing ? 'is-missing' : ''; ?>">
                                             <td>
                                                 <form method="POST" class="rename-form">
                                                     <?php echo csrfField(); ?>
@@ -193,6 +219,9 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
                                                            class="form-control form-control-sm title-input"
                                                            title="عدّل الاسم ثم اضغط Enter">
                                                 </form>
+                                                <?php if ($isMissing): ?>
+                                                    <span class="badge badge-missing" title="الملف غير موجود على القرص حالياً — قد يعود تلقائياً إن كان مصدره درايف ويتزامن مجدداً">مفقود</span>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <?php if ($isCloud): ?>
@@ -204,6 +233,7 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
                                             <td class="num"><?php echo formatDuration($t['duration'] !== null ? (int) $t['duration'] : null); ?></td>
                                             <td class="num"><?php echo formatSize((int) $t['filesize']); ?></td>
                                             <td class="actions">
+                                                <?php if (!$isMissing): ?>
                                                 <form method="POST" class="inline-form">
                                                     <?php echo csrfField(); ?>
                                                     <input type="hidden" name="action" value="play">
@@ -211,13 +241,23 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
                                                     <button type="submit" class="btn btn-primary btn-sm"
                                                             <?php echo $engineUp ? '' : 'disabled'; ?>>شغّل الآن</button>
                                                 </form>
-                                                <?php if (!$isCloud): ?>
+                                                <?php endif; ?>
+                                                <?php if (!$isCloud && !$isMissing): ?>
                                                 <form method="POST" class="inline-form"
-                                                      onsubmit="return confirm('حذف «<?php echo e($t['title']); ?>» نهائياً من السيرفر؟');">
+                                                      onsubmit="return confirm('حذف ملف «<?php echo e($t['title']); ?>» من السيرفر؟ السجلّ يبقى معلَّماً مفقوداً وتبقى عضويته في البلاي ليست.');">
                                                     <?php echo csrfField(); ?>
                                                     <input type="hidden" name="action" value="delete">
                                                     <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
-                                                    <button type="submit" class="btn btn-danger btn-sm">حذف</button>
+                                                    <button type="submit" class="btn btn-danger btn-sm">احذف الملف</button>
+                                                </form>
+                                                <?php endif; ?>
+                                                <?php if (!$isCloud || $isMissing): ?>
+                                                <form method="POST" class="inline-form"
+                                                      onsubmit="return confirm('حذف «<?php echo e($t['title']); ?>» نهائياً؟ هذا الإجراء لا رجعة فيه ويمحو عضوياته في البلاي ليست وجدولته.');">
+                                                    <?php echo csrfField(); ?>
+                                                    <input type="hidden" name="action" value="purge">
+                                                    <input type="hidden" name="id" value="<?php echo (int) $t['id']; ?>">
+                                                    <button type="submit" class="btn btn-danger btn-purge btn-sm">احذف نهائياً</button>
                                                 </form>
                                                 <?php endif; ?>
                                             </td>

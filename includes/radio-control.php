@@ -159,10 +159,15 @@ function formatSize(int $bytes): string {
 }
 
 /**
- * يزامن المكتبة مع القرص: يسجّل أي ملف موجود وغير مسجّل بعد، ويشطب سجلّ
- * أي ملف اختفى. يمسح مستويين:
+ * يزامن المكتبة مع القرص: يسجّل أي ملف موجود وغير مسجّل بعد، ويعلّم
+ * `status = 'missing'` لأي سجلّ اختفى ملفّه من القرص بدل حذفه. يمسح مستويين:
  *   - جذر مجلد الأغاني        → مصدره 'local'  (مرفوع من اللوحة أو SFTP)
  *   - المجلد الفرعي cloud/    → مصدره 'cloud'  (منسوخ من Google Drive)
+ *
+ * مزامنة Google Drive إلى cloud/ تفشل متقطّعاً فيختفي الملف ثم يعود بعد
+ * دقائق؛ لو حذفنا السجلّ عند كل اختفاء لضاعت عضويته في أي بلاي ليست بلا
+ * رجعة. لذلك: نعلّمه `missing` عند الاختفاء، ونعيده `ok` تلقائياً لو ظهر
+ * على القرص مجدداً.
  *
  * يُخزَّن `filename` كمسار نسبي من مجلد الأغاني، فيميّز بين المصدرين
  * ويبقى صالحاً لبناء المسار الكامل بنفس الطريقة للاثنين.
@@ -173,9 +178,10 @@ function syncTracksFromDisk(): int {
     if (!is_dir(RADIO_MUSIC_DIR)) return 0;
 
     $db    = db();
-    $known = array_flip(
-        $db->query('SELECT filename FROM radio_tracks')->fetchAll(PDO::FETCH_COLUMN)
-    );
+    $known = [];
+    foreach ($db->query('SELECT filename, status FROM radio_tracks')->fetchAll() as $row) {
+        $known[$row['filename']] = $row['status'];
+    }
 
     $exts  = array_unique(array_values(RADIO_AUDIO_TYPES));
     $base  = rtrim(RADIO_MUSIC_DIR, '/');
@@ -192,6 +198,8 @@ function syncTracksFromDisk(): int {
         'INSERT INTO radio_tracks (filename, title, source, duration, filesize)
          VALUES (?, ?, ?, ?, ?)'
     );
+    $restore = $db->prepare("UPDATE radio_tracks SET status = 'ok' WHERE filename = ?");
+    $markMissing = $db->prepare("UPDATE radio_tracks SET status = 'missing' WHERE filename = ?");
 
     foreach ($scanDirs as $dir => [$source, $prefix]) {
         if (!is_dir($dir)) continue;
@@ -204,7 +212,14 @@ function syncTracksFromDisk(): int {
 
             $relative = $prefix . $entry;
             $seen[$relative] = true;
-            if (isset($known[$relative])) continue;
+
+            if (isset($known[$relative])) {
+                // كان معلَّماً مفقوداً وظهر مجدداً — نعيده صالحاً
+                if ($known[$relative] === 'missing') {
+                    $restore->execute([$relative]);
+                }
+                continue;
+            }
 
             $insert->execute([
                 $relative,
@@ -217,10 +232,11 @@ function syncTracksFromDisk(): int {
         }
     }
 
-    // ملفات اختفت من القرص — نزيل سجلّاتها كي لا تظهر بالمكتبة ولا بالجدولة
-    foreach (array_keys($known) as $filename) {
-        if (!isset($seen[$filename])) {
-            $db->prepare('DELETE FROM radio_tracks WHERE filename = ?')->execute([$filename]);
+    // ملفات اختفت من القرص — نعلّم سجلّاتها مفقودة بدل حذفها كي تبقى عضويتها
+    // في البلاي ليست، وتعود صالحة تلقائياً لو رجع الملف بمزامنة لاحقة
+    foreach ($known as $filename => $status) {
+        if (!isset($seen[$filename]) && $status !== 'missing') {
+            $markMissing->execute([$filename]);
         }
     }
 
