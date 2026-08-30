@@ -67,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'لا يمكن اختيار بلاي ليست مُدارة آلياً كافتراضية';
         } else {
             $db->prepare('UPDATE radio_config SET default_playlist_id = ? WHERE id = 1')->execute([$id]);
+            refreshDefaultM3u();
             $success = 'تم تعيين البلاي ليست الافتراضية';
         }
     }

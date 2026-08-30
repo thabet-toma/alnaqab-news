@@ -308,21 +308,27 @@ function uploadTrack(array $file, string $title = ''): array {
 }
 
 /**
- * يكتب ملف .m3u لبلاي ليست معيّنة، مشتقّاً بالكامل من قاعدة البيانات — الملف
- * نتيجة لا مصدر (Liquidsoap لا يقرأه بعد؛ ذلك موضوع مهمة لاحقة). يستبعد أي
- * مقطع `status = 'missing'` فلا يحوي الملف إلا مسارات صالحة على القرص.
- *
- * الكتابة ذرّية: نكتب في ملف مؤقّت بنفس المجلد ثم ننقله بـ rename() فوق
- * الملف النهائي، لأن أي كتابة مباشرة قد يقرأها المحرّك في اللحظة نفسها
- * فيرى ملفاً نصف مكتوب.
+ * يكتب محتوى نصياً إلى ملف باسم معيّن داخل مجلد البلاي ليست بشكل ذرّي:
+ * يكتب في ملف مؤقّت بنفس المجلد ثم ينقله بـ rename() فوق الملف النهائي،
+ * لأن أي كتابة مباشرة قد يقرأها المحرّك في اللحظة نفسها فيرى ملفاً نصف مكتوب.
  *
  * ترجّع false بهدوء دون رمي استثناء إن تعذّرت الكتابة (مجلد غير موجود على
- * بيئة التطوير مثلاً) — لا نلمس قاعدة البيانات أصلاً في هذه الحالة.
+ * بيئة التطوير مثلاً).
  */
-function writePlaylistM3u(int $playlistId): bool {
-    $dir = rtrim(RADIO_PLAYLIST_DIR, '/');
-    if (!is_dir($dir) || !is_writable($dir)) return false;
+function writeM3uFileAtomic(string $dir, string $name, string $content): bool {
+    $final = $dir . '/' . $name;
+    $tmp   = $dir . '/.' . $name . '-' . bin2hex(random_bytes(4)) . '.tmp';
 
+    if (@file_put_contents($tmp, $content) === false) return false;
+    if (!@rename($tmp, $final)) {
+        @unlink($tmp);
+        return false;
+    }
+    return true;
+}
+
+/** يبني محتوى m3u لبلاي ليست معيّنة من قاعدة البيانات، مستبعداً المقاطع المفقودة */
+function buildPlaylistM3uContent(int $playlistId): string {
     $stmt = db()->prepare(
         "SELECT t.filename
            FROM radio_playlist_items i
@@ -338,16 +344,93 @@ function writePlaylistM3u(int $playlistId): bool {
     foreach ($filenames as $filename) {
         $lines[] = $musicBase . '/' . $filename;
     }
-    $content = implode("\n", $lines) . "\n";
+    return implode("\n", $lines) . "\n";
+}
 
-    // اسم الملف مبني من رقم صحيح، فلا خطر حقن مسار
-    $final = $dir . '/' . $playlistId . '.m3u';
-    $tmp   = $dir . '/.' . $playlistId . '-' . bin2hex(random_bytes(4)) . '.tmp';
+/**
+ * يكتب ملف .m3u لبلاي ليست معيّنة، مشتقّاً بالكامل من قاعدة البيانات — الملف
+ * نتيجة لا مصدر. يستبعد أي مقطع `status = 'missing'` فلا يحوي الملف إلا
+ * مسارات صالحة على القرص.
+ *
+ * إن كانت هذه البلاي ليست هي الافتراضية الحالية (`radio_config.default_playlist_id`)
+ * يُكتب المحتوى نفسه أيضاً إلى default.m3u، وهو ما يقرأه Liquidsoap عند الإقلاع.
+ *
+ * ترجّع false بهدوء دون رمي استثناء إن تعذّرت الكتابة (مجلد غير موجود على
+ * بيئة التطوير مثلاً) — لا نلمس قاعدة البيانات أصلاً في هذه الحالة.
+ */
+function writePlaylistM3u(int $playlistId): bool {
+    $dir = rtrim(RADIO_PLAYLIST_DIR, '/');
+    if (!is_dir($dir) || !is_writable($dir)) return false;
 
-    if (@file_put_contents($tmp, $content) === false) return false;
-    if (!@rename($tmp, $final)) {
-        @unlink($tmp);
-        return false;
+    $content = buildPlaylistM3uContent($playlistId);
+    if (!writeM3uFileAtomic($dir, $playlistId . '.m3u', $content)) return false;
+
+    $defaultId = (int) (getRadioConfig()['default_playlist_id'] ?? 0);
+    if ($defaultId === $playlistId) {
+        writeM3uFileAtomic($dir, 'default.m3u', $content);
     }
+
     return true;
+}
+
+/**
+ * يكتب default.m3u من محتوى البلاي ليست الافتراضية الحالية. تُستدعى عند
+ * تغيير *هوية* الافتراضية (لا عند تغيير محتواها — لذلك تتكفّل writePlaylistM3u).
+ * ترجّع false بهدوء إن لم تكن هناك افتراضية معيّنة أو غاب مجلد الوجهة.
+ */
+function refreshDefaultM3u(): bool {
+    $defaultId = (int) (getRadioConfig()['default_playlist_id'] ?? 0);
+    if ($defaultId <= 0) return false;
+
+    $dir = rtrim(RADIO_PLAYLIST_DIR, '/');
+    if (!is_dir($dir) || !is_writable($dir)) return false;
+
+    return writeM3uFileAtomic($dir, 'default.m3u', buildPlaylistM3uContent($defaultId));
+}
+
+/**
+ * يبدّل البلاي ليست الفعّالة على المحرّك: يعيّن مسار ملفها على مصدر الموسيقى
+ * ثم يفرض الانتقال فوراً بأمر تخطٍّ (التعيين وحده ينتظر نهاية المقطع الحالي).
+ * يتحقّق أولاً أن البلاي ليست موجودة ومفعّلة وأن ملفها المشتقّ جاهز على القرص.
+ */
+function radioSwitchPlaylist(int $playlistId): bool {
+    $stmt = db()->prepare('SELECT active FROM radio_playlists WHERE id = ?');
+    $stmt->execute([$playlistId]);
+    $row = $stmt->fetch();
+    if (!$row || (int) $row['active'] !== 1) return false;
+
+    $path = rtrim(RADIO_PLAYLIST_DIR, '/') . '/' . $playlistId . '.m3u';
+    if (!is_readable($path)) return false;
+
+    // المحرّك يردّ بسطر يبدأ بـ ERROR على أمر مرفوض، ولا يقطع الاتصال — فالردّ
+    // غير الفارغ وحده ليس دليل نجاح. بدون هذا الفحص قد يفشل التعيين بصمت ثم
+    // نسجّل الحالة الجديدة في المتغيّر، فيرى المشغّل تطابقاً كاذباً ولا يعيد المحاولة.
+    if (!radioCommandOk(radioCommand('music.uri ' . $path))) return false;
+    if (!radioCommandOk(radioCommand('music.skip')))         return false;
+
+    radioCommand('var.set active_playlist = "' . $playlistId . '"');
+
+    return true;
+}
+
+/** هل ردّ المحرّك يدلّ على نجاح؟ null = تعذّر الاتصال، وسطر ERROR = أمر مرفوض */
+function radioCommandOk(?string $response): bool {
+    if ($response === null) return false;
+    return stripos(ltrim($response), 'ERROR') !== 0;
+}
+
+/**
+ * معرّف البلاي ليست الفعّالة حالياً على المحرّك، أو null إن تعذّر الاتصال أو
+ * لم تكن هناك حالة صالحة (محرّك أُعيد تشغيله للتوّ ولم يبدّل أحد البلاي ليست
+ * بعد — القيمة الابتدائية "0" ليست معرّف بلاي ليست حقيقياً فتُعامل كـ null).
+ */
+function radioActivePlaylistId(): ?int {
+    $res = radioCommand('var.get active_playlist');
+    if ($res === null) return null;
+
+    $clean = trim($res, " \t\n\r\0\x0B\"");
+    if ($clean === '' || !ctype_digit($clean)) return null;
+
+    $id = (int) $clean;
+    return $id > 0 ? $id : null;
 }
