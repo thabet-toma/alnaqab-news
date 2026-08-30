@@ -121,6 +121,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 ads JSON,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_tracks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                source ENUM('local','cloud') NOT NULL DEFAULT 'local',
+                duration INT DEFAULT NULL COMMENT 'بالثواني',
+                filesize INT UNSIGNED DEFAULT NULL,
+                uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY filename (filename)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_schedule (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                track_id INT NOT NULL,
+                play_at TIME NOT NULL COMMENT 'ساعة التشغيل',
+                days VARCHAR(20) NOT NULL DEFAULT '' COMMENT 'أيام الأسبوع 0=الأحد مفصولة بفواصل، فاضي = كل يوم',
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                last_run DATETIME DEFAULT NULL COMMENT 'آخر تشغيل — يمنع التكرار بنفس اليوم',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                KEY fk_schedule_track (track_id),
+                KEY idx_active_time (active, play_at),
+                CONSTRAINT fk_schedule_track FOREIGN KEY (track_id)
+                    REFERENCES radio_tracks (id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
             // تنفيذ كل جملة منفصلة
