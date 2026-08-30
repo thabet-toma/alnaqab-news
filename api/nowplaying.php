@@ -1,23 +1,27 @@
 <?php
 /**
- * اسم المقطع الشغّال حالياً — يقرأ حالة Icecast من داخل السيرفر.
+ * الحالة الجارية الكاملة للبث — تقرأ محرّك الراديو عبر السوكيت (العنوان،
+ * الوقت المتبقّي، الموقع داخل البلاي ليست) واحتياطياً حالة Icecast.
  *
  * لماذا عبر PHP وليس مباشرة من المتصفح؟ لأن Icecast مربوط على 127.0.0.1
- * (غير مكشوف للإنترنت) ولا يرسل ترويسات CORS، فالمتصفح لا يستطيع قراءته.
+ * (غير مكشوف للإنترنت) ولا يرسل ترويسات CORS، فالمتصفح لا يستطيع قراءته،
+ * وسوكيت المحرّك ملفّي أصلاً فلا يصل إليه إلا PHP على نفس السيرفر.
  *
- * يرجّع دائماً JSON صالح؛ عند أي فشل يرجّع عنواناً فارغاً فتخفي الواجهة
- * الشارة بهدوء بدل أن تتعطل.
+ * يرجّع دائماً JSON صالح برمز HTTP 200 وبنية كاملة المفاتيح؛ عند أي فشل
+ * تكون القيم فارغة/null فتخفي الواجهة الشارة بهدوء بدل أن تتعطل.
  */
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/radio-control.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: public, max-age=5');
 
-$statusUrl = defined('ICECAST_STATUS_URL') ? ICECAST_STATUS_URL : 'http://127.0.0.1:8000/status-json.xsl';
+$statusUrl = defined('ICECAST_STATUS_URL') ? ICECAST_STATUS_URL : 'http://127.0.0.1:8010/status-json.xsl';
 $mount     = defined('ICECAST_MOUNT')      ? ICECAST_MOUNT      : '/radio';
 
-// كاش قصير: الصفحة تسأل كل 15 ثانية ولكل زائر، فلا نُرهق Icecast
+// كاش قصير: الصفحة تسأل كل 15 ثانية ولكل زائر، فلا نُرهق المحرّك ولا Icecast
 $cacheFile = sys_get_temp_dir() . '/naqab_nowplaying.json';
 if (is_readable($cacheFile) && (time() - filemtime($cacheFile)) < 5) {
     $cached = file_get_contents($cacheFile);
@@ -41,10 +45,11 @@ function fetchStatus(string $url): ?string {
     return is_string($body) ? $body : null;
 }
 
-$title = '';
-$body  = fetchStatus($statusUrl);
+/** عنوان المصدر كما يراه Icecast، فارغ عند أي تعذّر أو غياب */
+function fetchIcecastTitle(string $statusUrl, string $mount): string {
+    $body = fetchStatus($statusUrl);
+    if ($body === null) return '';
 
-if ($body !== null) {
     $data    = json_decode($body, true);
     $sources = $data['icestats']['source'] ?? [];
     // Icecast يرجّع كائناً واحداً عند وجود بث واحد، ومصفوفة عند تعددها
@@ -62,10 +67,19 @@ if ($body !== null) {
             $track  = trim((string)($src['track']  ?? ''));
             $title  = trim($artist . ($artist && $track ? ' - ' : '') . $track);
         }
-        break;
+        return $title;
     }
+    return '';
 }
 
-$out = json_encode(['title' => $title], JSON_UNESCAPED_UNICODE);
+$state = radioNowPlaying();
+
+// أثناء البثّ المباشر ما يُبثّ صوت المذيع لا مقطعاً، فسوكيت المحرّك لا يحمل
+// عنواناً؛ Icecast يحمل العنوان الذي يرسله برنامج المذيع نفسه في هذه الحالة.
+if ($state['title'] === '') {
+    $state['title'] = fetchIcecastTitle($statusUrl, $mount);
+}
+
+$out = json_encode($state, JSON_UNESCAPED_UNICODE);
 @file_put_contents($cacheFile, $out, LOCK_EX);
 echo $out;

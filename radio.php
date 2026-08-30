@@ -197,7 +197,6 @@ $isAdmin = isLoggedIn();
         const RADIO_CONFIG = {
             streamUrl: <?= json_encode($radioConfig['stream_url']) ?>,
             stationName: <?= json_encode($radioConfig['station_name']) ?>,
-            zenoMount: <?= json_encode(zenoMount($radioConfig['stream_url'] ?? '')) ?>,
             artwork: <?= json_encode($images[0] ?? '') ?>,
             nowPlayingUrl: <?= json_encode(SITE_URL . '/api/nowplaying.php') ?>,
             apiUrl: <?= json_encode(SITE_URL . '/admin/ajax/save-radio.php') ?>

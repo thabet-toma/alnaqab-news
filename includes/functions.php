@@ -282,25 +282,6 @@ function radioImages($raw): array {
     return $urls;
 }
 
-/**
- * استخراج معرّف الـ mount من رابط بث Zeno.FM لاستخدامه مع الـ Metadata API.
- * https://stream.zeno.fm/abc123  ->  abc123
- * يرجّع '' لأي رابط بث آخر (Icecast عادي مثلاً) فتُعطّل ميزة "شو شغال هلق" بهدوء.
- */
-function zenoMount(string $streamUrl): string {
-    $host = parse_url($streamUrl, PHP_URL_HOST) ?: '';
-    if (!preg_match('/(^|\.)zeno\.fm$/i', $host)) return '';
-
-    $path = trim(parse_url($streamUrl, PHP_URL_PATH) ?: '', '/');
-    if ($path === '') return '';
-
-    // البث قد يكون بصيغة "abc123" أو "abc123/source" أو "abc123.mp3"
-    $mount = explode('/', $path)[0];
-    $mount = preg_replace('/\.(mp3|aac|ogg)$/i', '', $mount);
-
-    return preg_match('/^[A-Za-z0-9_-]+$/', $mount) ? $mount : '';
-}
-
 /* ===== الإعدادات ===== */
 
 function getSetting(string $key, string $default = ''): string {

@@ -63,6 +63,30 @@ function radioCommand(string $command): ?string {
     return implode("\n", $lines);
 }
 
+/**
+ * أوامر القراءة الوحيدة المسموح تمريرها من نقطة عامة بلا تسجيل دخول (نقطة
+ * "الآن يُشغَّل"). قائمة حرفية ثابتة لا نمطاً ولا بادئة عمداً: أي إضافة
+ * مستقبلية تُكتب هنا صراحةً، فيستحيل بنيوياً أن يُبنى أمر من مدخل مستخدم أو
+ * من طلب HTTP ويمرّ عبر radioReadCommand() لأن in_array الصارم يقارن نصاً
+ * كاملاً لا جزءاً منه.
+ */
+const RADIO_READ_COMMANDS = [
+    '/radio.metadata',
+    '/radio.remaining',
+    'var.get active_playlist',
+    'input.harbor.status',
+];
+
+/**
+ * ينفّذ أمراً فقط إن كان عضواً حرفياً في RADIO_READ_COMMANDS، وإلا يرفضه
+ * فوراً بإرجاع null دون لمس السوكيت. هذا هو الحاجز الوحيد بين نقطة عامة
+ * والتحكّم الكامل بمحرّك الراديو.
+ */
+function radioReadCommand(string $command): ?string {
+    if (!in_array($command, RADIO_READ_COMMANDS, true)) return null;
+    return radioCommand($command);
+}
+
 /** هل محرّك الراديو شغّال ويستجيب؟ */
 function radioEngineUp(): bool {
     return radioCommand('uptime') !== null;
@@ -121,7 +145,7 @@ function radioCurrentTitle(): string {
  * يحتوي عبارة الاتصال داخله نفحص النفي صراحةً بدل البحث عن العبارة.
  */
 function radioLiveOnAir(): bool {
-    $res = radioCommand('input.harbor.status');
+    $res = radioReadCommand('input.harbor.status');
     if ($res === null) return false;
     $res = trim($res);
     return $res !== '' && !str_starts_with($res, 'no ');
@@ -433,4 +457,111 @@ function radioActivePlaylistId(): ?int {
 
     $id = (int) $clean;
     return $id > 0 ? $id : null;
+}
+
+/**
+ * الحالة الجارية الكاملة للبث — المصدر الوحيد للحقيقة الذي تستهلكه نقطة
+ * "الآن يُشغَّل" العامة. ترجّع دائماً كل المفاتيح ولا ترمي استثناءً أبداً؛
+ * عند تعذّر الاتصال بالمحرّك ترجّع نفس البنية بقيم فارغة/null.
+ *
+ * قيد معروف لا حلّ له من البيانات المتاحة: مقطع مكرّر عمداً داخل نفس البلاي
+ * ليست (جينجل بين المقاطع مثلاً) يعطي دائماً موضع أول ظهور له، لا موضعه
+ * الفعلي الجاري — لا رقم طلب (rid) ولا مؤشر تشغيل يميّز بين التكرارات.
+ */
+function radioNowPlaying(): array {
+    $result = [
+        'title'     => '',
+        'remaining' => null,
+        'position'  => null,
+        'total'     => null,
+        'playlist'  => '',
+        'live'      => false,
+    ];
+
+    $result['live'] = radioLiveOnAir();
+
+    // ---- العنوان ومسار الملف من /radio.metadata (الكتلة الأولى = الأحدث) ----
+    $path = null;
+    $meta = radioReadCommand('/radio.metadata');
+    if ($meta !== null) {
+        $blocks = preg_split('/\n\s*\n/', trim($meta));
+        $fields = [];
+        foreach (explode("\n", $blocks[0] ?? '') as $line) {
+            if (!str_contains($line, '=')) continue;
+            [$key, $value] = explode('=', $line, 2);
+            $fields[trim($key)] = trim(trim($value), '"');
+        }
+
+        $path  = $fields['filename'] ?? $fields['initial_uri'] ?? null;
+        $title = trim($fields['title'] ?? '');
+        if ($title === '') {
+            $title = trim($fields['artist'] ?? '');
+        }
+        if ($title === '' && $path !== null) {
+            $title = pathinfo($path, PATHINFO_FILENAME);
+        }
+        $result['title'] = $title;
+    }
+
+    // ---- الوقت المتبقّي من /radio.remaining ----
+    $remaining = radioReadCommand('/radio.remaining');
+    if ($remaining !== null) {
+        $remaining = trim($remaining);
+        if (is_numeric($remaining) && (float) $remaining >= 0) {
+            $result['remaining'] = (int) round((float) $remaining);
+        }
+    }
+
+    // ---- الموقع داخل البلاي ليست الفعّالة، يُبنى في PHP بالكامل ----
+    $playlistId = radioActivePlaylistId();
+    if ($playlistId === null) return $result;
+
+    // النقطة العامة تستدعي هذه الدالة، وعقدها أن تُرجع بنية كاملة دائماً بلا
+    // انهيار. لمس قاعدة البيانات هنا يفتح مسار فشل جديداً — سيرفر لم تُطبَّق
+    // عليه ترقية المخطّط بعد يرمي استثناءً على جدول غير موجود — فنبتلعه
+    // ونرجّع ما جمعناه من المحرّك بدل أن نكسر صفحة الزائر.
+    try {
+        $stmt = db()->prepare('SELECT name FROM radio_playlists WHERE id = ?');
+        $stmt->execute([$playlistId]);
+        $name = $stmt->fetchColumn();
+        if ($name === false) return $result;
+        $result['playlist'] = $name;
+
+        $itemsStmt = db()->prepare(
+            "SELECT i.track_id
+               FROM radio_playlist_items i
+               JOIN radio_tracks t ON t.id = i.track_id
+              WHERE i.playlist_id = ? AND t.status = 'ok'
+              ORDER BY i.sort_order, i.id"
+        );
+        $itemsStmt->execute([$playlistId]);
+        // نصرّح بالتحويل لأعداد: المقارنة الصارمة أدناه تفشل صامتةً لو رجّع
+        // السائق نصوصاً، فيصير الموقع فارغاً بلا سبب ظاهر
+        $trackIds = array_map('intval', $itemsStmt->fetchAll(PDO::FETCH_COLUMN));
+        $result['total'] = count($trackIds);
+
+        if ($path === null) return $result;
+
+        // الربط بمسار الملف لا بمطابقة نصّ العنوان: filename عليه قيد تفرّد.
+        $base = realpath(RADIO_MUSIC_DIR);
+        $real = realpath($path);
+        if ($base === false || $real === false || !str_starts_with($real, $base . '/')) {
+            return $result;
+        }
+        $relative = substr($real, strlen($base) + 1);
+
+        $trackStmt = db()->prepare('SELECT id FROM radio_tracks WHERE filename = ?');
+        $trackStmt->execute([$relative]);
+        $trackId = $trackStmt->fetchColumn();
+        if ($trackId === false) return $result;
+
+        $index = array_search((int) $trackId, $trackIds, true);
+        if ($index !== false) {
+            $result['position'] = $index + 1;
+        }
+    } catch (Throwable $e) {
+        error_log('[radioNowPlaying] تعذّرت قراءة البلاي ليست: ' . $e->getMessage());
+    }
+
+    return $result;
 }
