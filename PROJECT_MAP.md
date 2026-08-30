@@ -142,5 +142,40 @@ ALTER TABLE radio_schedule
     ADD CONSTRAINT chk_schedule_target CHECK ((track_id IS NULL) <> (playlist_id IS NULL));
 ```
 
+## [نشر ترقية البلاي ليست — الترتيب إلزامي]
+
+الخطوات على السيرفر الحيّ بعد `git pull`. **الترتيب مقصود**: الكود الجديد يقرأ
+جداول لا توجد بعد، والمحرّك الجديد يقرأ ملفاً لا تكتبه إلا اللوحة.
+
+1. **المخطّط أولاً.** الصق كتلة `[SCHEMA — ترقية البلاي ليست]` أعلاه. قبلها
+   ترجّع `api/nowplaying.php` بنية فارغة بهدوء (مُغلَّفة بـ try/catch) ولا
+   تنهار، لكن صفحات البلاي ليست لن تعمل.
+2. **مجلد البلاي ليست:**
+   ```
+   sudo mkdir -p /srv/radio/playlists
+   sudo chown liquidsoap:liquidsoap /srv/radio/playlists
+   sudo chmod 2775 /srv/radio/playlists
+   ```
+   بدونه ترجّع `writePlaylistM3u()` قيمة `false` **بصمت** ولا يُكتب أي ملف.
+3. **أنشئ بلاي ليست واحدة على الأقل وعيّنها افتراضية من اللوحة.** هذا ما يكتب
+   `/srv/radio/playlists/default.m3u`، وهو ما سيقرأه المحرّك عند الإقلاع.
+   **قبل هذه الخطوة لا تعِد تشغيل Liquidsoap** — سيجد ملفاً غير موجود.
+4. **المحرّك:**
+   ```
+   sudo cp radio-server/radio.liq /srv/radio/radio.liq
+   # أعِد كتابة كلمات السر الثلاث (القيم في المستودع نائبة)
+   # وتأكد أن منفذ Icecast هنا = المنفذ الفعلي (8010 على هذا السيرفر)
+   liquidsoap --check /srv/radio/radio.liq
+   sudo systemctl restart liquidsoap
+   ```
+   `liquidsoap --check` **إلزامي** — لم يُفحص هذا الملف في أي بيئة تطوير
+   (لا Liquidsoap على ويندوز).
+5. **المذيع الثاني (المنفذ 8006) مؤجَّل**، ولا يُفتح قبل:
+   تشخيص مستهلك الذاكرة (السواب مستهلك بالكامل)، و`sudo ufw enable` مع
+   السماح لـ 8005 و8006. الجدار معطّل اليوم ومنفذ المايك الأول مكشوف بكلمة
+   سرّ وحيدة — بند يستحقّ الإصلاح بمعزل عن هذه الميزة.
+6. **تحقّق:** الأغاني تُسمع بترتيب البلاي ليست لا عشوائياً · شارة صفحة الراديو
+   تعرض `4/20` وزمناً يتناقص · موعد تجريبي بعد دقيقتين يبدّل البلاي ليست فعلاً.
+
 ## [ORPHANS & PENDING]
 - None. All tasks completed successfully.

@@ -61,20 +61,33 @@ sudo systemctl status icecast2 --no-pager
 
 ---
 
-## 3. مجلد الأغاني وملف الإعداد
+## 3. المجلدات وملف الإعداد
 
 ```bash
-sudo mkdir -p /srv/radio/music /var/log/liquidsoap
+sudo mkdir -p /srv/radio/music /srv/radio/playlists /var/log/liquidsoap
 sudo cp /var/www/alnaqab/radio-server/radio.liq /srv/radio/radio.liq
 sudo nano /srv/radio/radio.liq
 ```
 
-غيّر السطرين:
+`/srv/radio/playlists` هو مجلد ملفات `.m3u` يلي بتكتبها لوحة التحكم من قاعدة
+البيانات. **Liquidsoap ما بيقرأ مجلد الأغاني مباشرة** — بيقرأ
+`/srv/radio/playlists/default.m3u`، يعني بلاي ليست افتراضية بلا هذا الملف =
+بث صامت. لازم مستخدم PHP يقدر يكتب فيه:
+
+```bash
+sudo chown liquidsoap:liquidsoap /srv/radio/playlists
+sudo chmod 2775 /srv/radio/playlists     # setgid: أي ملف جديد بيرث المجموعة
+```
+
+(`www-data` عضو بمجموعة `liquidsoap` من إعداد السوكيت بالخطوة 4.)
+
+غيّر الأسطر الثلاثة:
 
 | المتغير | القيمة |
 |---|---|
 | `icecast_pass` | نفس `<source-password>` من الخطوة 2 |
-| `live_pass` | كلمة سر تعطيها للمذيع |
+| `live_pass` | كلمة سر المذيع الأول |
+| `live2_pass` | كلمة سر المذيع الثاني — **لازم تختلف عن الأولى**، هي يلي بتميّز مين على الهواء |
 
 **افحص الملف قبل ما تكمّل** — هذا الأمر بيكشف أي خطأ صيغة فوراً بدل ما
 تكتشفه بعد ما تفشل الخدمة:
@@ -173,23 +186,30 @@ sudo systemctl reload apache2
 
 على جهاز المذيع، نزّل [BUTT](https://danielnoethen.de/butt/) واضبط:
 
-| الخانة | القيمة |
-|---|---|
-| Type | **Icecast** |
-| Address | `example.com` |
-| Port | **8005** |
-| Password | `live_pass` من الخطوة 3 |
-| Mountpoint | `/live` |
-| Format | MP3 |
+في مذيعان، كل واحد بمنفذه وكلمة سره:
 
-افتح منفذ المذيع بالجدار الناري:
+| الخانة | المذيع الأول | المذيع الثاني |
+|---|---|---|
+| Type | **Icecast** | **Icecast** |
+| Address | `example.com` | `example.com` |
+| Port | **8005** | **8006** |
+| Password | `live_pass` من الخطوة 3 | `live2_pass` من الخطوة 3 |
+| Mountpoint | `/live` | `/live2` |
+| Format | MP3 | MP3 |
+
+افتح المنفذين بالجدار الناري:
 
 ```bash
 sudo ufw allow 8005/tcp
+sudo ufw allow 8006/tcp
 ```
 
+**الجدار لازم يكون مفعّلاً أصلاً** (`sudo ufw status`) — منفذ المايك مكشوف
+للإنترنت وما بيحميه غير كلمة السر، فتركه بلا جدار فجوة قائمة لحالها.
+
 اضغط زر التسجيل في BUTT → صوتك بيقطع الأغاني فوراً. سكّر → الأغاني بترجع
-لحالها.
+لحالها. لو اتصل الاثنان معاً بينخلط صوتهما وبيسمع الناس الاثنين، وفصل واحد
+ما بيقطع التاني.
 
 ---
 
@@ -213,5 +233,8 @@ curl -s http://127.0.0.1:8000/status-json.xsl | head -20
 | `/stream` يرجّع 404 | سطور `ProxyPass` انحطّت بملف الـ 80 بدل الـ 443، أو Apache ما عمل reload |
 | `/stream` يرجّع 502 | Liquidsoap واقف — `journalctl -u liquidsoap -n 40` |
 | صوت ما بيطلع والصفحة تقول "جاري الاتصال" | رابط البث `http` مش `https` |
-| BUTT ما بيتصل | المنفذ 8005 مسكّر بالجدار الناري، أو نسيت `/` قبل `live` |
+| BUTT ما بيتصل | المنفذ (8005 للأول، 8006 للتاني) مسكّر بالجدار الناري، أو نسيت `/` قبل اسم الـ mountpoint |
 | الأغاني ما بتشتغل | المجلد `/srv/radio/music` فاضي، أو الملكية مش `liquidsoap` |
+| بث صامت رغم وجود مقاطع | `/srv/radio/playlists/default.m3u` مش موجود — ما في بلاي ليست افتراضية باللوحة، أو `www-data` ما بيقدر يكتب بمجلد `playlists` |
+| اللوحة بتقول «تعذّر التبديل» | نفس السبب أعلاه، أو `music.uri` ما اشتغل لأن معرّف مصدر الأغاني بـ `radio.liq` مش `music` |
+| البلاي ليست ما بتتبدّل بالموعد | مهمة الـ cron مش مثبّتة — اللوحة بتحذّر بشريط أحمر بصفحة الجدولة |
