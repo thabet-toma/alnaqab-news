@@ -118,27 +118,6 @@ function radioSkip(): bool {
     return radioCommand('/radio.skip') !== null;
 }
 
-/** اسم المقطع الشغّال حالياً كما يراه Icecast (فارغ عند التعذّر) */
-function radioCurrentTitle(): string {
-    $url = defined('ICECAST_STATUS_URL')
-        ? ICECAST_STATUS_URL
-        : 'http://127.0.0.1:8010/status-json.xsl';
-
-    $ctx  = stream_context_create(['http' => ['timeout' => 2]]);
-    $body = @file_get_contents($url, false, $ctx);
-    if ($body === false) return '';
-
-    $data = json_decode($body, true);
-    $src  = $data['icestats']['source'] ?? [];
-    if (isset($src['listenurl'])) $src = [$src];
-
-    foreach ($src as $s) {
-        $title = trim((string)($s['title'] ?? ''));
-        if ($title !== '') return html_entity_decode($title, ENT_QUOTES, 'UTF-8');
-    }
-    return '';
-}
-
 /**
  * هل يوجد مذيع متصل بالمايك الآن؟
  * Liquidsoap يردّ "no source client connected" عند عدم الاتصال، ولأن هذا النص

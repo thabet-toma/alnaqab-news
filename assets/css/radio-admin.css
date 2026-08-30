@@ -385,7 +385,29 @@ body.is-reordering {
     margin: 18px 0 14px;
 }
 
+/* ===== معلومات "الآن يُشغَّل" الموسّعة داخل شريط الحالة (وضع التشغيل التلقائي فقط) ===== */
+.np-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-inline-start: 20px;
+    color: #8fa3b8;
+    font-size: 0.85rem;
+}
+
+.np-position,
+.np-remaining {
+    font-variant-numeric: tabular-nums;
+}
+
+.np-remaining {
+    color: #e9c46a;
+}
+
 @media (max-width: 600px) {
     .days-grid { grid-template-columns: 1fr; }
     .radio-status-bar { flex-direction: column; align-items: flex-start; }
+    .np-meta { margin-inline-start: 0; }
 }

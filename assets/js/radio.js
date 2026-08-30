@@ -438,25 +438,93 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.mediaSession.setActionHandler('pause', togglePlay);
     }
 
-    // 10. "شو شغّال هلق" عبر Metadata API الخاص بـ Zeno.FM (Server-Sent Events)
+    // 10. "شو شغّال هلق" — عنوان المقطع، موقعه بالبلاي ليست، والزمن المتبقّي
     const nowPlayingBadge = document.getElementById('nowPlayingBadge');
     const nowPlayingText = document.getElementById('nowPlayingText');
+    const nowPlayingPosition = document.getElementById('nowPlayingPosition');
+    const nowPlayingRemaining = document.getElementById('nowPlayingRemaining');
+    const nowPlayingLive = document.getElementById('nowPlayingLive');
 
-    function applyNowPlaying(title) {
-        title = (title || '').trim();
-        if (title === currentTrack) return;
+    let remainingSeconds = null;
+    let remainingTimer = null;
+
+    function formatRemaining(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function renderRemaining() {
+        if (!nowPlayingRemaining) return;
+        if (remainingSeconds === null) {
+            nowPlayingRemaining.hidden = true;
+            return;
+        }
+        nowPlayingRemaining.textContent = formatRemaining(remainingSeconds);
+        nowPlayingRemaining.hidden = false;
+    }
+
+    function stopRemainingTimer() {
+        if (remainingTimer) {
+            clearInterval(remainingTimer);
+            remainingTimer = null;
+        }
+    }
+
+    // يضبط الزمن المتبقّي من قيمة السيرفر (تصحّح الانزياح) ثم يُنقص ثانية
+    // كل ثانية أمام المستمع بين استطلاعين، بمؤقّت واحد لا يُعاد إنشاؤه في كل استجابة
+    function applyRemaining(seconds) {
+        if (typeof seconds !== 'number' || seconds < 0) {
+            remainingSeconds = null;
+            stopRemainingTimer();
+            renderRemaining();
+            return;
+        }
+        remainingSeconds = seconds;
+        renderRemaining();
+        if (!remainingTimer) {
+            remainingTimer = setInterval(() => {
+                if (remainingSeconds === null) return;
+                remainingSeconds = Math.max(0, remainingSeconds - 1);
+                renderRemaining();
+            }, 1000);
+        }
+    }
+
+    function applyNowPlaying(state) {
+        const title = (state.title || '').trim();
+        const titleChanged = title !== currentTrack;
         currentTrack = title;
 
         if (nowPlayingBadge && nowPlayingText) {
             nowPlayingText.textContent = title;
             nowPlayingBadge.hidden = title === '';
         }
-        if (isPlaying) setupMediaSession();
+
+        if (nowPlayingLive) nowPlayingLive.hidden = !state.live;
+
+        if (state.live) {
+            // البثّ المباشر يجعل الموقع داخل البلاي ليست بلا معنى
+            if (nowPlayingPosition) nowPlayingPosition.hidden = true;
+            applyRemaining(null);
+        } else {
+            if (nowPlayingPosition) {
+                if (state.position != null && state.total != null) {
+                    nowPlayingPosition.textContent = `${state.position}/${state.total}`;
+                    nowPlayingPosition.hidden = false;
+                } else {
+                    nowPlayingPosition.hidden = true;
+                }
+            }
+            applyRemaining(state.remaining);
+        }
+
+        if (titleChanged && isPlaying) setupMediaSession();
     }
 
     // مصدر البث الذاتي (Icecast على نفس السيرفر): نسأل نقطة PHP عندنا،
     // لأن Icecast مربوط على 127.0.0.1 ولا يمكن للمتصفح قراءته مباشرة.
-    function initNowPlayingLocal() {
+    function initNowPlaying() {
         if (!RADIO_CONFIG.nowPlayingUrl) return;
 
         const poll = async () => {
@@ -464,41 +532,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch(RADIO_CONFIG.nowPlayingUrl, { cache: 'no-store' });
                 if (!res.ok) return;
                 const data = await res.json();
-                applyNowPlaying(data.title || '');
+                applyNowPlaying(data);
             } catch (e) {
-                // انقطاع مؤقت — نترك العنوان السابق ونحاول لاحقاً
+                // انقطاع مؤقت — نترك الحالة السابقة ونحاول لاحقاً
             }
         };
 
         poll();
         setInterval(poll, 15000);
-    }
-
-    function initNowPlaying() {
-        // مع Zeno.FM نستخدم بثّهم اللحظي (SSE)
-        if (!RADIO_CONFIG.zenoMount || typeof EventSource === 'undefined') {
-            initNowPlayingLocal();
-            return;
-        }
-
-        let source;
-        try {
-            source = new EventSource(
-                'https://api.zeno.fm/mounts/metadata/subscribe/' + encodeURIComponent(RADIO_CONFIG.zenoMount)
-            );
-        } catch (e) {
-            initNowPlayingLocal(); // لا نكسر الصفحة إذا فشل الاتصال بالـ API
-            return;
-        }
-
-        source.addEventListener('message', (event) => {
-            let data;
-            try { data = JSON.parse(event.data); } catch (e) { return; }
-            applyNowPlaying(data.streamTitle || data.title || '');
-        });
-
-        // EventSource يعيد الاتصال تلقائياً، فنكتفي بإخفاء الشارة عند الانقطاع
-        source.addEventListener('error', () => applyNowPlaying(''));
     }
 
     initNowPlaying();

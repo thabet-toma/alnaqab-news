@@ -108,8 +108,8 @@ if ($added > 0 && $success === '') {
 
 $tracks     = $db->query('SELECT * FROM radio_tracks ORDER BY uploaded_at DESC')->fetchAll();
 $engineUp   = radioEngineUp();
-$nowPlaying = radioCurrentTitle();
-$onAir      = radioLiveOnAir();
+$now        = radioNowPlaying();
+$onAir      = $now['live'];
 $totalSize  = array_sum(array_column($tracks, 'filesize'));
 ?>
 <!DOCTYPE html>
@@ -173,9 +173,16 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
                                 <span class="status-hint">المايك يعلو على كل المقاطع — أوقف البث من BUTT ليرجع التشغيل التلقائي</span>
                             <?php else: ?>
                                 <strong>التشغيل التلقائي</strong>
-                                <span class="status-hint"><?php echo $nowPlaying !== '' ? e($nowPlaying) : 'لا يوجد مقطع'; ?></span>
+                                <span class="status-hint" id="npTitle"><?php echo $now['title'] !== '' ? e($now['title']) : 'لا يوجد مقطع'; ?></span>
                             <?php endif; ?>
                         </div>
+                        <?php if (!$onAir): ?>
+                        <div class="np-meta">
+                            <span class="np-playlist" id="npPlaylist" <?php echo $now['playlist'] !== '' ? '' : 'hidden'; ?>><?php echo e($now['playlist']); ?></span>
+                            <span class="np-position" id="npPosition" <?php echo ($now['position'] !== null && $now['total'] !== null) ? '' : 'hidden'; ?>><?php echo $now['position'] !== null && $now['total'] !== null ? (int) $now['position'] . '/' . (int) $now['total'] : ''; ?></span>
+                            <span class="np-remaining" id="npRemaining" <?php echo $now['remaining'] !== null ? '' : 'hidden'; ?>><?php echo $now['remaining'] !== null ? e(sprintf('%d:%02d', intdiv((int) $now['remaining'], 60), (int) $now['remaining'] % 60)) : ''; ?></span>
+                        </div>
+                        <?php endif; ?>
                         <form method="POST" class="inline-form">
                             <?php echo csrfField(); ?>
                             <input type="hidden" name="action" value="skip">
@@ -320,5 +327,8 @@ $totalSize  = array_sum(array_column($tracks, 'filesize'));
     </div>
 
     <script src="<?php echo SITE_URL; ?>/assets/js/admin.js"></script>
+    <?php if ($engineUp && !$onAir): ?>
+    <script src="<?php echo SITE_URL; ?>/assets/js/radio-now.js?v=<?php echo assetVersion('/assets/js/radio-now.js'); ?>"></script>
+    <?php endif; ?>
 </body>
 </html>

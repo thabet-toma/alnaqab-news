@@ -105,6 +105,9 @@ body {
 .now-playing-badge[hidden] { display: none; }
 .now-playing-badge i { color: var(--secondary); flex-shrink: 0; }
 .now-playing-badge span { overflow: hidden; text-overflow: ellipsis; }
+.now-playing-position,
+.now-playing-remaining { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.now-playing-live { flex-shrink: 0; color: var(--danger); font-weight: 700; }
 
 .artwork-stage {
     position: relative; width: 250px; height: 250px; margin: 0 auto 30px;

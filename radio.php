@@ -52,6 +52,9 @@ $isAdmin = isLoggedIn();
                 </div>
                 <div class="now-playing-badge" id="nowPlayingBadge" hidden>
                     <i class="fas fa-music"></i> <span id="nowPlayingText"></span>
+                    <span id="nowPlayingPosition" class="now-playing-position" hidden></span>
+                    <span id="nowPlayingRemaining" class="now-playing-remaining" hidden></span>
+                    <span id="nowPlayingLive" class="now-playing-live" hidden>مباشر الآن</span>
                 </div>
             </div>
 
