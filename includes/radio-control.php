@@ -75,6 +75,8 @@ const RADIO_READ_COMMANDS = [
     '/radio.remaining',
     'var.get active_playlist',
     'input.harbor.status',
+    'live1.status',
+    'live2.status',
 ];
 
 /**
@@ -122,12 +124,29 @@ function radioSkip(): bool {
  * هل يوجد مذيع متصل بالمايك الآن؟
  * Liquidsoap يردّ "no source client connected" عند عدم الاتصال، ولأن هذا النص
  * يحتوي عبارة الاتصال داخله نفحص النفي صراحةً بدل البحث عن العبارة.
+ *
+ * تعمل مع محرّكين معاً: الجديد (مذيعان بمعرّفين صريحين live1/live2) والقديم
+ * (مذيع واحد بمعرّف تلقائي input.harbor). نفحص الاسمين الجديدين أولاً؛ فإن
+ * ردّ المحرّك بـ ERROR عليهما (لا يعرفهما لأن radio.liq الجديد لم يُنشر بعد)
+ * نهبط للاسم القديم. ترجّع true إن كان أيٌّ من المذيعين على الهواء.
  */
 function radioLiveOnAir(): bool {
-    $res = radioReadCommand('input.harbor.status');
-    if ($res === null) return false;
-    $res = trim($res);
-    return $res !== '' && !str_starts_with($res, 'no ');
+    $anyKnown = false;
+    foreach (['live1.status', 'live2.status'] as $cmd) {
+        $res = radioReadCommand($cmd);
+        if ($res === null || !radioCommandOk($res)) continue; // المحرّك لا يعرف هذا الاسم
+        $anyKnown = true;
+        $res = trim($res);
+        if ($res !== '' && !str_starts_with($res, 'no ')) return true;
+    }
+    if ($anyKnown) return false; // المحرّك الجديد يعرف الاسمين ولا أحد منهما متصل
+
+    // المحرّك لا يعرف live1/live2 إطلاقاً — لم يُنشر radio.liq الجديد بعد،
+    // نعود للاسم القديم توافقاً مع المحرّك الحالي.
+    $legacy = radioReadCommand('input.harbor.status');
+    if ($legacy === null || !radioCommandOk($legacy)) return false;
+    $legacy = trim($legacy);
+    return $legacy !== '' && !str_starts_with($legacy, 'no ');
 }
 
 /**
