@@ -87,9 +87,14 @@ function csrfField(): string {
     return '<input type="hidden" name="_csrf" value="' . csrfToken() . '">';
 }
 
-function verifyCsrf(): bool {
-    $token = $_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    return hash_equals(csrfToken(), $token);
+/**
+ * التحقق من رمز CSRF
+ * يقبل الرمز كوسيط (لطلبات AJAX/JSON) وإلا يقرأه من الحقول المعتادة
+ */
+function verifyCsrf(?string $token = null): bool {
+    $token ??= $_POST['_csrf'] ?? $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if ($token === '' || empty($_SESSION['csrf_token'])) return false;
+    return hash_equals($_SESSION['csrf_token'], $token);
 }
 
 /**

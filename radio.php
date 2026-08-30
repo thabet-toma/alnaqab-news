@@ -59,7 +59,7 @@ $isAdmin = isLoggedIn();
                 <div class="artwork-stage">
                     <div class="image-slider" id="imageSlider">
                         <?php if (empty($images)): ?>
-                            <div class="slide active" style="background-image: url('<?= e(SITE_URL) ?>/assets/images/default-radio.jpg')"></div>
+                            <div class="slide active" style="background-image: url('<?= e(SITE_URL) ?>/assets/img/placeholder.jpg')"></div>
                         <?php else: ?>
                             <?php foreach ($images as $index => $img): ?>
                                 <div class="slide <?= $index === 0 ? 'active' : '' ?>" style="background-image: url('<?= e($img) ?>')"></div>

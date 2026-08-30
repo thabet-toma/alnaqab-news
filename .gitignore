@@ -15,3 +15,7 @@ uploads/articles/*
 !uploads/articles/.gitkeep
 uploads/ads/*
 !uploads/ads/.gitkeep
+
+# Local server config and credentials
+includes/config.local.php
+.db-credentials
