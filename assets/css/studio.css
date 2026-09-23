@@ -1,0 +1,190 @@
+/* ===== شاشة الاستوديو (OBS) — تملأ نافذة الالتقاط، والمقاسات بـ vmin لتصلح
+   للأفقي 1920×1080 والعمودي 1080×1920 بلا تعديل ===== */
+:root {
+    --s-bg: #070d14;
+    --s-panel: rgba(7, 13, 20, 0.82);
+    --s-text: #fafaf8;
+    --s-muted: #b8c4d4;
+    --s-primary: #d4213d;
+    --s-accent: #e8912d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { width: 100%; height: 100%; overflow: hidden; }
+
+body.studio {
+    font-family: 'Tajawal', sans-serif;
+    background: var(--s-bg);
+    color: var(--s-text);
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+}
+
+.studio-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2.4vmin 3.2vmin;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
+    z-index: 3;
+}
+
+.studio-brand {
+    font-family: 'Lalezar', cursive;
+    font-size: 5.4vmin;
+    color: var(--s-accent);
+    line-height: 1;
+}
+
+.studio-badge {
+    display: flex;
+    align-items: center;
+    gap: 1.2vmin;
+    font-size: 3.4vmin;
+    font-weight: 800;
+    padding: 0.8vmin 2.4vmin;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.12);
+}
+.studio-badge.is-live { background: var(--s-primary); }
+
+.studio-dot {
+    width: 1.8vmin;
+    height: 1.8vmin;
+    border-radius: 50%;
+    background: var(--s-muted);
+}
+.studio-badge.is-live .studio-dot {
+    background: #fff;
+    animation: studioPulse 1.4s ease-in-out infinite;
+}
+@keyframes studioPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.studio-stage {
+    position: relative;
+    overflow: hidden;
+    margin: 0 3.2vmin;
+    border-radius: 2vmin;
+    background: #000;
+}
+
+.studio-slide {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+}
+.studio-slide.is-active { opacity: 1; }
+
+.studio-visual {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+.studio-visual.is-showing { opacity: 1; }
+.studio-visual .live-visual-media {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.studio-lower {
+    display: flex;
+    align-items: center;
+    gap: 2vmin;
+    margin: 2.4vmin 3.2vmin;
+    padding: 1.8vmin 2.4vmin;
+    background: var(--s-panel);
+    border-inline-start: 1vmin solid var(--s-primary);
+    border-radius: 1.2vmin;
+    min-height: 9vmin;
+}
+
+.studio-lower-label {
+    flex-shrink: 0;
+    font-size: 2.8vmin;
+    font-weight: 800;
+    color: var(--s-accent);
+}
+
+.studio-lower-text {
+    font-size: 4vmin;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.studio-ticker {
+    display: flex;
+    align-items: stretch;
+    background: var(--s-panel);
+    font-size: 3vmin;
+}
+
+.studio-ticker-label {
+    flex-shrink: 0;
+    background: var(--s-primary);
+    font-weight: 800;
+    padding: 1.2vmin 2.4vmin;
+}
+
+.studio-ticker-wrap {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+}
+
+.studio-ticker-move {
+    display: inline-flex;
+    white-space: nowrap;
+    padding-inline-start: 100%;
+    animation: studioTicker 40s linear infinite;
+}
+
+.studio-ticker-item { padding: 0 4vmin; }
+
+@keyframes studioTicker {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+}
+
+/* العمودي (تيك توك): المنصة تغطّي واجهتها أسفل الشاشة وأعلاها، فنرفع السطر
+   السفلي ونترك هامشاً أكبر للأسفل */
+.studio-vertical .studio-stage { margin: 0 2.4vmin; }
+.studio-vertical .studio-lower { margin-bottom: 8vmin; }
+.studio-vertical .studio-brand { font-size: 7vmin; }
+.studio-vertical .studio-lower-text { white-space: normal; }
+
+.studio-unmute {
+    position: fixed;
+    inset: auto 50% 50% auto;
+    transform: translate(50%, 50%);
+    font-family: inherit;
+    font-size: 4vmin;
+    font-weight: 800;
+    color: #fff;
+    background: var(--s-primary);
+    border: 0;
+    border-radius: 2vmin;
+    padding: 2.4vmin 4vmin;
+    cursor: pointer;
+    z-index: 10;
+}
+.studio-unmute[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .studio-badge.is-live .studio-dot,
+    .studio-ticker-move { animation: none; }
+}

@@ -176,6 +176,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 CONSTRAINT fk_item_playlist FOREIGN KEY (playlist_id) REFERENCES radio_playlists (id) ON DELETE CASCADE,
                 CONSTRAINT fk_item_track FOREIGN KEY (track_id) REFERENCES radio_tracks (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_live_tokens (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                token_hash CHAR(64) NOT NULL COMMENT 'sha256 للرمز — الرمز الخام في الرابط فقط',
+                role ENUM('host','guest') NOT NULL,
+                slot TINYINT NOT NULL COMMENT '1 = live1 (المذيع) · 2 = live2 (الضيف)',
+                name VARCHAR(80) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                revoked_at DATETIME DEFAULT NULL,
+                last_auth_at DATETIME DEFAULT NULL COMMENT 'آخر اتصال ناجح بالمحرّك',
+                created_by INT DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_token_hash (token_hash),
+                KEY idx_role_expires (role, expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+            CREATE TABLE IF NOT EXISTS radio_visuals (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                type ENUM('image','video') NOT NULL,
+                filename VARCHAR(255) NOT NULL COMMENT 'نسبي داخل uploads/',
+                title VARCHAR(160) NOT NULL DEFAULT '',
+                duration INT DEFAULT NULL COMMENT 'للفيديو، بالثواني',
+                filesize INT UNSIGNED DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
             // تنفيذ كل جملة منفصلة

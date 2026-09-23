@@ -543,4 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initNowPlaying();
+
+    // الصورة أو الفيديو الذي يعرضه المذيع من غرفة التحكم يغطّي المعرض أثناء العرض
+    const liveVisual = document.getElementById('liveVisual');
+    if (liveVisual && window.LiveVisual && RADIO_CONFIG.liveStateUrl) {
+        LiveVisual.attach(liveVisual, { stateUrl: RADIO_CONFIG.liveStateUrl, pollMs: 5000 });
+    }
 });

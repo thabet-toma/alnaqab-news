@@ -55,8 +55,42 @@ requests = request.queue(id = "requests")
 # (input.harbor أو input.harbor.1 وهكذا)، فتصير أسماء أوامر الحالة على السوكيت
 # غير متوقّعة وقد تتضارب بين المصدرين، ولا يعود الموقع يعرف من على الهواء.
 # بالمعرّفات الصريحة تصير الأسماء ثابتة ومقروءة: live1.status و live2.status.
-live1 = input.harbor(id = "live1", "live",  port = 8005, password = live_pass)
-live2 = input.harbor(id = "live2", "live2", port = 8006, password = live2_pass)
+#
+# ===== الدخول برابط من المتصفح (الاستوديو المباشر) =====
+# المتصفح يتصل بنفس المدخلين عبر WebSocket (بروتوكول webcast، يمرّ عبر Nginx
+# من /live-in/1 و /live-in/2) ويرسل رمزاً مؤقتاً بدل كلمة السر. المحرّك لا يعرف
+# الرموز فيسأل الموقع: سكربت PHP يخرج بـ 0 للقبول و1 للرفض.
+#
+# معامل auth يُلغي معامل password تماماً، فكلمة BUTT الثابتة تُفحص هنا أولاً
+# ومباشرةً — BUTT يُقبل حتى لو كانت قاعدة البيانات أو PHP معطّلين، وهذا ما يجعله
+# احتياطاً حقيقياً. استدعاء PHP في فرعه للتسجيل فقط (لتعرف غرفة التحكم أن
+# المصدر BUTT) ونتيجته مُهملة عمداً.
+#
+# الرمز يُمرَّر في متغيّر بيئة لا في سطر الأمر حتى لا يظهر في قائمة العمليات.
+# env غير الفارغ يلغي وراثة بيئة المحرّك، لذلك مسار php كامل.
+live_php  = "/usr/bin/php"
+live_gate = "/var/www/radio.ktra-pro.tech/cron/radio-live-auth.php"
+
+def live_auth(slot, static_pass) =
+  fun (login) ->
+    if login.password == static_pass then
+      ignore(process.test(timeout = 5., env = [("RADIO_LIVE_BUTT", "1")], "#{live_php} #{live_gate} #{slot}"))
+      true
+    else
+      process.test(timeout = 5., env = [("RADIO_TOKEN", login.password)], "#{live_php} #{live_gate} #{slot}")
+    end
+end
+
+live1 = input.harbor(id = "live1", "live",  port = 8005, auth = live_auth("1", live_pass))
+live2 = input.harbor(id = "live2", "live2", port = 8006, auth = live_auth("2", live2_pass))
+
+# ===== الكتم من غرفة التحكم =====
+# متغيّران تفاعليان تكتبهما لوحة التحكم عبر السوكيت: var.set live1_gain = 0.
+# الكتم يُسكت الصوت فقط والاتصال يبقى — الطرد أمر مستقل (live1.stop).
+live1_gain = interactive.float("live1_gain", 1.)
+live2_gain = interactive.float("live2_gain", 1.)
+live1 = amplify(live1_gain, live1)
+live2 = amplify(live2_gain, live2)
 
 # ===== خلط المذيعين =====
 # normalize = false إلزامي هنا: القيمة الافتراضية (true) تقسم المستوى على عدد
@@ -81,7 +115,29 @@ live  = fallback(track_sensitive = false, [hosts, live1, live2])
 # البث المدمج للمذيعين يعلو على كل شي، ثم الطلبات/المجدول، ثم الأغاني العادية.
 # بنية الأولوية نفسها لم تتغيّر — المدخل المباشر صار مخلوطاً بدل مفرد فقط.
 # track_sensitive = false : التحويل فوري ولا ينتظر انتهاء المقطع الحالي
-radio = fallback(track_sensitive = false, [live, requests, music])
+program = fallback(track_sensitive = false, [live, requests, music])
+
+# ===== صوت الفيديو المعروض (العرض المرئي من غرفة التحكم) =====
+# لوحة التحكم تدفع ملف الفيديو هنا (visual.push) في نفس لحظة إظهار صورته.
+# القاعدة: ما دام مذيع متصلاً وغير مكتوم فصوت الفيديو لا يُبثّ، وإلا يُبثّ
+# بدل البرنامج (الأغنية تتوقف وتُكمل من حيث وقفت بعد انتهائه).
+#
+# fallback لا يسحب المصدر غير المختار، فلو تُرك الفيديو له وحده لتجمّد صوته
+# أثناء الكلام ثم استُؤنف متأخراً عن صورته. output.dummy يسحب طابور الفيديو في
+# كل لحظة، فيتقدّم صوته مع صورته حتى وهو غير مبثوث.
+#
+# لماذا لا add بأوزان: add يُسقط حدود المقاطع، فيتعطّل /radio.remaining
+# (الزمن المتبقّي في شارة «الآن يُشغَّل») ويتغيّر معنى /radio.skip.
+visual = request.queue(id = "visual")
+output.dummy(fallible = true, visual)
+
+def talking() =
+  (source.is_ready(live1) and live1_gain() > 0.) or
+  (source.is_ready(live2) and live2_gain() > 0.)
+end
+
+visual_heard = switch(track_sensitive = false, [({not talking()}, visual)])
+radio = fallback(track_sensitive = false, [visual_heard, program])
 
 # ===== اختبار القبول (نفّذه يدوياً بعد النشر، لا يشغّله هذا الملف) =====
 # 1) بلا أي مذيع متصل يجب أن تُسمع الموسيقى. لو سُمع صمت فمعناه أن add صار
@@ -89,6 +145,9 @@ radio = fallback(track_sensitive = false, [live, requests, music])
 # 2) اتصال مذيع واحد (live1 أو live2) ⇒ يُسمع صوته وحده.
 # 3) اتصال الثاني أثناء بثّ الأول ⇒ يُسمع الاثنان معاً بلا قفزة في المستوى.
 # 4) فصل أحدهما أثناء كلام الآخر ⇒ الآخر يبقى على الهواء بلا انقطاع.
+# 5) var.set live2_gain = 0. ⇒ صمت المذيع الثاني والأول مسموع؛ = 1. يعيده.
+# 6) visual.push <mp4> بلا مذيع ⇒ صوت الفيديو يُسمع والأغنية تتوقف؛ دخول مذيع ⇒
+#    صوته هو المسموع؛ خروجه ⇒ يعود الفيديو من موضعه الزمني الصحيح لا من حيث توقف.
 
 # ===== الإخراج إلى Icecast =====
 # ⬇️ تأكد أن المنفذ هنا هو نفسه <port> في icecast.xml — 8010 هو المقيس على

@@ -259,3 +259,18 @@ body {
 .unmute-btn i { font-size: 1.6rem; }
 
 .unmute-hint { color: var(--text-muted); font-size: 0.95rem; max-width: 320px; }
+
+/* ===== العرض المرئي من غرفة التحكم — يغطّي المعرض ويكبّره لنسبة 16:9 ===== */
+.live-visual {
+    position: absolute; inset: 0; z-index: 2;
+    background: #000; opacity: 0; pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+.live-visual.is-showing { opacity: 1; }
+.live-visual-media { width: 100%; height: 100%; object-fit: contain; display: block; }
+.artwork-stage:has(.live-visual.is-showing) {
+    width: min(100%, 640px); height: auto; aspect-ratio: 16 / 9;
+}
+@media (prefers-reduced-motion: reduce) {
+    .live-visual { transition: none; }
+}

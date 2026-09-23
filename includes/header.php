@@ -25,6 +25,17 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
     <title><?= $page_title ?></title>
     
     <meta name="description" content="<?= isset($metaDescription) ? e($metaDescription) : e(SITE_DESC) ?>">
+    <?php
+    // الرابط القانوني للصفحة: SITE_URL + المسار الحالي بعد حذف مجلد الموقع إن
+    // كان في مجلد فرعي (localhost/radio) حتى لا يتكرّر
+    $sitePath = rtrim((string) parse_url(SITE_URL, PHP_URL_PATH), '/');
+    $reqUri   = $_SERVER['REQUEST_URI'] ?? '/';
+    if ($sitePath !== '' && str_starts_with($reqUri, $sitePath)) $reqUri = substr($reqUri, strlen($sitePath));
+    ?>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="<?= e(SITE_NAME) ?>">
+    <meta property="og:url" content="<?= e(rtrim(SITE_URL, '/') . $reqUri) ?>">
+    <meta name="twitter:card" content="<?= isset($metaImage) ? 'summary_large_image' : 'summary' ?>">
     <meta property="og:title" content="<?= $page_title ?>">
     <meta property="og:description" content="<?= isset($metaDescription) ? e($metaDescription) : e(SITE_DESC) ?>">
     <?php if(isset($metaImage)): ?>

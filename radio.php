@@ -9,6 +9,11 @@ $images = radioImages($radioConfig['images'] ?? '[]');
 $ticker = json_decode($radioConfig['ticker'] ?? '[]', true);
 $ads = json_decode($radioConfig['ads'] ?? '[]', true);
 $isAdmin = isLoggedIn();
+
+// معاينة الرابط عند مشاركته (فيسبوك، واتساب، X): og:image يجب أن يكون رابطاً مطلقاً
+$shareDesc  = trim((string) ($radioConfig['tagline'] ?? '')) !== '' ? $radioConfig['tagline'] : SITE_DESC;
+$shareImage = $images[0] ?? (SITE_URL . '/assets/img/placeholder.jpg');
+if (!preg_match('#^https?://#i', $shareImage)) $shareImage = rtrim(SITE_URL, '/') . '/' . ltrim($shareImage, '/');
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -16,6 +21,14 @@ $isAdmin = isLoggedIn();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($radioConfig['station_name']) ?> - <?= e(SITE_NAME) ?></title>
+    <meta name="description" content="<?= e($shareDesc) ?>">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="<?= e(SITE_NAME) ?>">
+    <meta property="og:title" content="<?= e($radioConfig['station_name']) ?> — بث مباشر">
+    <meta property="og:description" content="<?= e($shareDesc) ?>">
+    <meta property="og:url" content="<?= e(SITE_URL . '/radio.php') ?>">
+    <meta property="og:image" content="<?= e($shareImage) ?>">
+    <meta name="twitter:card" content="summary_large_image">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Lalezar&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?= e(SITE_URL) ?>/assets/css/radio.css?v=<?= e(assetVersion('/assets/css/radio.css')) ?>">
@@ -69,6 +82,7 @@ $isAdmin = isLoggedIn();
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
+                    <div class="live-visual" id="liveVisual" aria-live="polite"></div>
                     <div class="equalizer" id="equalizer">
                         <span></span><span></span><span></span><span></span><span></span>
                     </div>
@@ -202,9 +216,11 @@ $isAdmin = isLoggedIn();
             stationName: <?= json_encode($radioConfig['station_name']) ?>,
             artwork: <?= json_encode($images[0] ?? '') ?>,
             nowPlayingUrl: <?= json_encode(SITE_URL . '/api/nowplaying.php') ?>,
+            liveStateUrl: <?= json_encode(SITE_URL . '/api/live-state.php') ?>,
             apiUrl: <?= json_encode(SITE_URL . '/admin/ajax/save-radio.php') ?>
         };
     </script>
+    <script src="<?= e(SITE_URL) ?>/assets/js/live-visual.js?v=<?= e(assetVersion('/assets/js/live-visual.js')) ?>"></script>
     <script src="<?= e(SITE_URL) ?>/assets/js/radio.js?v=<?= e(assetVersion('/assets/js/radio.js')) ?>"></script>
 </body>
 </html>

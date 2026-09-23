@@ -213,6 +213,99 @@ sudo ufw allow 8006/tcp
 
 ---
 
+## 9. الاستوديو المباشر (البث من المتصفح + روابط الضيوف + العرض المرئي)
+
+من لوحة التحكم ← **الاستوديو المباشر**: المذيع يبثّ من المتصفح، يُنشئ رابطاً
+للضيف يفتحه ويتكلم، يكتم أو يطرد أي صوت، ويعرض صوراً وفيديو. BUTT يبقى يعمل
+كما في الخطوة 8 — كلمتا السر الثابتتان تُقبلان دائماً حتى لو تعطّل الموقع.
+
+**كيف يعمل الدخول:** المتصفح يتصل بنفس المنفذين 8005/8006 عبر WebSocket (مروراً
+بـ Nginx/Apache على HTTPS)، ويرسل رمزاً مؤقتاً بدل كلمة السر. Liquidsoap يسأل
+`cron/radio-live-auth.php` عن كل رمز. الرمز يُلغى بالطرد أو من اللوحة.
+
+### 9.1 الجدولان (مرة واحدة)
+
+```sql
+-- نفس ما في install.php — IF NOT EXISTS، إضافي فقط
+CREATE TABLE IF NOT EXISTS radio_live_tokens ( ...انظر install.php... );
+CREATE TABLE IF NOT EXISTS radio_visuals ( ...انظر install.php... );
+```
+
+انسخ الجملتين كاملتين من `install.php` (كتلة `CREATE TABLE`) ونفّذهما على
+قاعدة البيانات الحيّة. حالة العرض الجارية تُحفظ في جدول `settings` الموجود
+(`radio_visual_now`، `radio_visual_delay`، `radio_live_slot1/2`) فلا تحتاج جدولاً.
+
+### 9.2 صلاحية القراءة لبوّاب الدخول
+
+سكربت التحقق يعمل بمستخدم `liquidsoap` ويحتاج قراءة `includes/config.local.php`
+(صلاحيته 640 لمجموعة `www-data`):
+
+```bash
+sudo usermod -aG www-data liquidsoap
+```
+
+مسار السكربت مكتوب في `radio.liq` (`live_gate`) — عدّله إن لم يكن الموقع في
+`/var/www/radio.ktra-pro.tech`.
+
+### 9.3 تمرير WebSocket
+
+**Nginx** — داخل `server { ... }` الخاص بـ 443:
+
+```nginx
+location = /live-in/1 {
+    proxy_pass http://127.0.0.1:8005/live;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+    proxy_buffering off;
+}
+location = /live-in/2 {
+    proxy_pass http://127.0.0.1:8006/live2;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
+    proxy_buffering off;
+}
+```
+
+**Apache** — `sudo a2enmod proxy_wstunnel` ثم داخل `<VirtualHost *:443>`:
+
+```apache
+    ProxyPass /live-in/1 ws://127.0.0.1:8005/live
+    ProxyPass /live-in/2 ws://127.0.0.1:8006/live2
+```
+
+### 9.4 حجم رفع الفيديو
+
+الفيديو حتى 64 ميغابايت. ارفع حدود PHP (`upload_max_filesize = 64M` و
+`post_max_size = 70M`) و`client_max_body_size 70m;` في Nginx.
+
+### 9.5 النشر والفحص
+
+```bash
+sudo cp /srv/radio/radio.liq /srv/radio/radio.liq.bak     # نسخة للرجوع
+sudo cp radio-server/radio.liq /srv/radio/radio.liq       # ثم أعد كلمات السر الثلاث من النسخة
+liquidsoap --check /srv/radio/radio.liq
+sudo systemctl restart liquidsoap
+```
+
+بعد التشغيل:
+
+```bash
+# الأوامر الجديدة موجودة؟ المتوقع: live1_gain و live2_gain وأوامر visual.*
+echo help | socat - UNIX-CONNECT:/srv/radio/liquidsoap.sock | grep -E "gain|visual"
+# WebSocket يمرّ؟ المتوقع: 101 Switching Protocols
+curl -si -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Protocol: webcast" \
+     https://example.com/live-in/2 | head -1
+```
+
+ثم اختبار القبول المكتوب في آخر `radio.liq` (البنود 1–6).
+
+---
+
 ## فحص سريع
 
 ```bash
@@ -238,3 +331,7 @@ curl -s http://127.0.0.1:8000/status-json.xsl | head -20
 | بث صامت رغم وجود مقاطع | `/srv/radio/playlists/default.m3u` مش موجود — ما في بلاي ليست افتراضية باللوحة، أو `www-data` ما بيقدر يكتب بمجلد `playlists` |
 | اللوحة بتقول «تعذّر التبديل» | نفس السبب أعلاه، أو `music.uri` ما اشتغل لأن معرّف مصدر الأغاني بـ `radio.liq` مش `music` |
 | البلاي ليست ما بتتبدّل بالموعد | مهمة الـ cron مش مثبّتة — اللوحة بتحذّر بشريط أحمر بصفحة الجدولة |
+| الضيف أو المذيع من المتصفح: «رُفض الاتصال» | `liquidsoap` مش بمجموعة `www-data` (9.2)، أو مسار `live_gate` غلط — `journalctl -u liquidsoap -n 40` |
+| المتصفح يظل «جارٍ الاتصال» | مواقع `/live-in/` ناقصة بإعداد Nginx/Apache (9.3) |
+| الكتم ما بيشتغل | `radio.liq` القديم لسا منشور — ما فيه `live1_gain` |
+| الفيديو بيظهر بلا صوت | المحرّك ما بيقدر يقرأ `uploads/visuals` — لازم الملفات 644 والمجلدات قابلة للدخول |
