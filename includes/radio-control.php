@@ -71,7 +71,7 @@ function radioCommand(string $command): ?string {
  * كاملاً لا جزءاً منه.
  */
 const RADIO_READ_COMMANDS = [
-    '/radio.metadata',
+    'request.on_air',
     '/radio.remaining',
     'var.get active_playlist',
     'input.harbor.status',
@@ -458,6 +458,35 @@ function radioActivePlaylistId(): ?int {
 }
 
 /**
+ * رقم الطلب (rid) الذي يُبثّ الآن، أو null إن لم يكن هناك طلب على الهواء
+ * (مذيع مباشر مثلاً — صوت المايك ليس طلباً) أو تعذّر الاتصال بالمحرّك.
+ *
+ * request.on_air قد يردّ أكثر من رقم في سطر واحد أثناء الانتقال بين مقطعين
+ * (المنتهي والبادئ معاً للحظة). نأخذ الأكبر: الأرقام تتصاعد مع كل طلب جديد
+ * فالأكبر هو الأحدث — أي المقطع الذي صار يُسمع، لا الذي انتهى للتوّ.
+ */
+function radioOnAirRid(): ?int {
+    $res = radioReadCommand('request.on_air');
+    if ($res === null || !radioCommandOk($res)) return null;
+    if (!preg_match_all('/\d+/', $res, $m)) return null;
+    return max(array_map('intval', $m[0]));
+}
+
+/**
+ * بيانات طلب بعينه كما يعرفها المحرّك: اسم الملف على القرص ووسوم المقطع.
+ *
+ * هذا الأمر الوحيد في مسار القراءة الذي يأخذ وسيطاً، فلا يمكن أن يكون عضواً
+ * حرفياً في RADIO_READ_COMMANDS. الحاجز محفوظ بشكل آخر لا أضعف: نوع الوسيط
+ * int يجعل بناء نصّ أمر من مدخل مستخدم مستحيلاً بنيوياً — لا مسافة ولا سطر
+ * جديد يعبران التحويل — ورقم الطلب لا يأتي من HTTP أصلاً بل من ردّ
+ * radioOnAirRid() على المحرّك نفسه.
+ */
+function radioRequestMetadata(int $rid): ?string {
+    if ($rid < 0) return null;
+    return radioCommand('request.metadata ' . $rid);
+}
+
+/**
  * الحالة الجارية الكاملة للبث — المصدر الوحيد للحقيقة الذي تستهلكه نقطة
  * "الآن يُشغَّل" العامة. ترجّع دائماً كل المفاتيح ولا ترمي استثناءً أبداً؛
  * عند تعذّر الاتصال بالمحرّك ترجّع نفس البنية بقيم فارغة/null.
@@ -478,13 +507,26 @@ function radioNowPlaying(): array {
 
     $result['live'] = radioLiveOnAir();
 
-    // ---- العنوان ومسار الملف من /radio.metadata (الكتلة الأولى = الأحدث) ----
+    // ---- العنوان ومسار الملف من بيانات الطلب الجاري نفسه ----
+    // لا نقرأ /radio.metadata: ذلك الأمر لا يُظهر إلا ما يصدّره المرمِّز، وقائمة
+    // settings.encoder.metadata.export الافتراضية لا تحوي filename ولا
+    // initial_uri — فكان المسار يعود null دائماً (الموقع لا يظهر أبداً)،
+    // والمقطع بلا وسم عنوان يخرج بعنوان فارغ فيسقط على عنوان Icecast العالق من
+    // مقطع سابق ويكذب على الزائر. بيانات الطلب تحمل الاثنين، ودون نشر مسارات
+    // ملفات السيرفر في بيانات ICY العامة كما تفعل إضافة filename للتصدير.
+    //
+    // أثناء البثّ المباشر لا نسأل عن الطلب أصلاً: صوت المايك ليس طلباً، لكن
+    // طلب المقطع الذي كان يُبثّ قبل دخول المذيع قد يبقى محسوباً «على الهواء»
+    // في المحرّك. لو أخذنا عنوانه لعرضنا اسم أغنية بينما يتكلّم المذيع، ولمنعنا
+    // api/nowplaying.php من السقوط على عنوان Icecast — وهو مصدر العنوان الصحيح
+    // الوحيد في هذه الحالة لأنه ما يرسله برنامج المذيع نفسه.
     $path = null;
-    $meta = radioReadCommand('/radio.metadata');
-    if ($meta !== null) {
-        $blocks = preg_split('/\n\s*\n/', trim($meta));
+    $titleFromPath = false;
+    $rid  = $result['live'] ? null : radioOnAirRid();
+    $meta = $rid !== null ? radioRequestMetadata($rid) : null;
+    if ($meta !== null && radioCommandOk($meta)) {
         $fields = [];
-        foreach (explode("\n", $blocks[0] ?? '') as $line) {
+        foreach (explode("\n", $meta) as $line) {
             if (!str_contains($line, '=')) continue;
             [$key, $value] = explode('=', $line, 2);
             $fields[trim($key)] = trim(trim($value), '"');
@@ -497,6 +539,7 @@ function radioNowPlaying(): array {
         }
         if ($title === '' && $path !== null) {
             $title = pathinfo($path, PATHINFO_FILENAME);
+            $titleFromPath = true;
         }
         $result['title'] = $title;
     }
@@ -548,12 +591,21 @@ function radioNowPlaying(): array {
         }
         $relative = substr($real, strlen($base) + 1);
 
-        $trackStmt = db()->prepare('SELECT id FROM radio_tracks WHERE filename = ?');
+        $trackStmt = db()->prepare('SELECT id, title FROM radio_tracks WHERE filename = ?');
         $trackStmt->execute([$relative]);
-        $trackId = $trackStmt->fetchColumn();
-        if ($trackId === false) return $result;
+        $track = $trackStmt->fetch();
+        if ($track === false) return $result;
 
-        $index = array_search((int) $trackId, $trackIds, true);
+        // عنوان المكتبة أدقّ من اسم الملف حين لا يحمل المقطع وسماً: الملف
+        // المرفوع من اللوحة يحمل لاحقة عشوائية في اسمه («أغنية-a3f9c1»)
+        // بينما العنوان في المكتبة هو ما كتبه المدير. لا نلمس عنواناً جاء من
+        // وسم داخل الملف نفسه — الوسم أقرب للمقطع من سجلّ قاعدة البيانات.
+        $libraryTitle = trim((string) ($track['title'] ?? ''));
+        if ($titleFromPath && $libraryTitle !== '') {
+            $result['title'] = $libraryTitle;
+        }
+
+        $index = array_search((int) $track['id'], $trackIds, true);
         if ($index !== false) {
             $result['position'] = $index + 1;
         }
