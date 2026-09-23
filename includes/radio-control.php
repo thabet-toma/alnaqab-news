@@ -487,6 +487,15 @@ function radioRequestMetadata(int $rid): ?string {
 }
 
 /**
+ * عنوان نظيف للعرض. وسوم ID3 كثيراً ما تنتهي بحرف NUL، والمحرّك يطبعه في
+ * بيانات الطلب نصّاً حرفياً «\u0000»، فيظهر في آخر العنوان على صفحة الراديو
+ * وشاشة الاستوديو. نزيل الشكلين: البايت الحقيقي والنصّ المُهرَّب.
+ */
+function radioCleanTitle(string $title): string {
+    return trim(str_replace(["\0", '\u0000'], '', $title));
+}
+
+/**
  * الحالة الجارية الكاملة للبث — المصدر الوحيد للحقيقة الذي تستهلكه نقطة
  * "الآن يُشغَّل" العامة. ترجّع دائماً كل المفاتيح ولا ترمي استثناءً أبداً؛
  * عند تعذّر الاتصال بالمحرّك ترجّع نفس البنية بقيم فارغة/null.
@@ -533,9 +542,9 @@ function radioNowPlaying(): array {
         }
 
         $path  = $fields['filename'] ?? $fields['initial_uri'] ?? null;
-        $title = trim($fields['title'] ?? '');
+        $title = radioCleanTitle($fields['title'] ?? '');
         if ($title === '') {
-            $title = trim($fields['artist'] ?? '');
+            $title = radioCleanTitle($fields['artist'] ?? '');
         }
         if ($title === '' && $path !== null) {
             $title = pathinfo($path, PATHINFO_FILENAME);

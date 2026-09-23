@@ -61,10 +61,10 @@ function fetchIcecastTitle(string $statusUrl, string $mount): string {
             continue;
         }
         // title هو ما يرسله المذيع؛ عند التشغيل التلقائي يتكوّن من artist+track
-        $title = trim((string)($src['title'] ?? ''));
+        $title = radioCleanTitle((string)($src['title'] ?? ''));
         if ($title === '') {
-            $artist = trim((string)($src['artist'] ?? ''));
-            $track  = trim((string)($src['track']  ?? ''));
+            $artist = radioCleanTitle((string)($src['artist'] ?? ''));
+            $track  = radioCleanTitle((string)($src['track']  ?? ''));
             $title  = trim($artist . ($artist && $track ? ' - ' : '') . $track);
         }
         return $title;
