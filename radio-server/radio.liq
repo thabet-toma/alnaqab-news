@@ -81,8 +81,11 @@ def live_auth(slot, static_pass) =
     end
 end
 
-live1 = input.harbor(id = "live1", "live",  port = 8005, auth = live_auth("1", live_pass))
-live2 = input.harbor(id = "live2", "live2", port = 8006, auth = live_auth("2", live2_pass))
+# buffer = 5.: المدخل يخزّن هذا القدر قبل أن يصير على الهواء. الافتراضي 12 ثانية
+# (محسوب لـ crossfade لا نستعمله على المباشر) فكان المذيع ينتظر 12 ثانية بعد
+# الاتصال قبل أن يُسمع. 5 ثوانٍ (قيمة AzuraCast) تكفي لتذبذب شبكة الموبايل.
+live1 = input.harbor(id = "live1", "live",  port = 8005, buffer = 5., auth = live_auth("1", live_pass))
+live2 = input.harbor(id = "live2", "live2", port = 8006, buffer = 5., auth = live_auth("2", live2_pass))
 
 # ===== الكتم من غرفة التحكم =====
 # متغيّران تفاعليان تكتبهما لوحة التحكم عبر السوكيت: var.set live1_gain = 0.
