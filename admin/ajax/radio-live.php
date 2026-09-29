@@ -45,6 +45,7 @@ try {
                 'expires_at' => $g['expires_at'],
                 'used'       => $g['last_auth_at'] !== null,
             ], liveGuestTokens());
+            $youtube = youtubeLiveCurrent();
             liveJson([
                 'success' => true,
                 'engine'  => radioEngineUp(),
@@ -52,6 +53,9 @@ try {
                 'guests'  => $guests,
                 'visual'  => liveCurrentVisual(),
                 'delay'   => liveVisualDelay(),
+                'youtube' => $youtube,
+                // منشور لكن تجاوز 6 ساعات: تظهر للمذيع ملاحظة أنه انتهى تلقائياً
+                'youtube_expired' => $youtube === null && getSetting('radio_youtube_now', '') !== '',
             ]);
 
         case 'mute':
@@ -107,6 +111,19 @@ try {
             $seconds = max(0, min(30, (int) ($input['seconds'] ?? LIVE_VISUAL_DELAY_DEFAULT)));
             setSetting('radio_visual_delay', (string) $seconds);
             liveJson(['success' => true, 'delay' => $seconds]);
+
+        case 'youtube_start':
+            [$ok, $msg] = liveYoutubeStart((string) ($input['url'] ?? ''), $adminId);
+            liveJson([
+                'success' => $ok,
+                'warning' => $ok ? $msg : null,
+                'error'   => $ok ? null : $msg,
+                'youtube' => $ok ? youtubeLiveCurrent() : null,
+            ]);
+
+        case 'youtube_stop':
+            liveYoutubeStop($adminId);
+            liveJson(['success' => true]);
 
         default:
             liveJson(['success' => false, 'error' => 'أمر غير معروف'], 400);

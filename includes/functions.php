@@ -282,6 +282,49 @@ function radioImages($raw): array {
     return $urls;
 }
 
+/* ===== بث يوتيوب (StreamYard ← يوتيوب ← الموقع) ===== */
+
+/** عمر بث يوتيوب المنشور — بعده يُعدّ منتهياً لو نسي المذيع «أنهِ البث» */
+const YOUTUBE_LIVE_TTL = 21600;
+
+/**
+ * رقم فيديو يوتيوب (11 حرفاً) من أي شكل رابط شائع، أو null.
+ * نخزّن الرقم وحده لا الرابط، فلا يصل للصفحة إلا [A-Za-z0-9_-].
+ */
+function youtubeVideoId(string $url): ?string {
+    $url = trim($url);
+    if (!preg_match('#^https?://#i', $url)) $url = 'https://' . $url;
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) return null;
+
+    $host = strtolower($parts['host']);
+    $path = $parts['path'] ?? '';
+    $id   = '';
+    if ($host === 'youtu.be') {
+        $id = explode('/', ltrim($path, '/'))[0];
+    } elseif (in_array($host, ['youtube.com', 'www.youtube.com', 'm.youtube.com'], true)) {
+        if ($path === '/watch') {
+            parse_str($parts['query'] ?? '', $query);
+            $id = is_string($query['v'] ?? null) ? $query['v'] : '';
+        } elseif (preg_match('#^/(?:live|embed|shorts)/([^/]+)#', $path, $m)) {
+            $id = $m[1];
+        }
+    }
+    return preg_match('/^[A-Za-z0-9_-]{11}$/', $id) ? $id : null;
+}
+
+/** بث يوتيوب المنشور الآن [id, title, started_at]، أو null إن لم يوجد أو انتهت صلاحيته */
+function youtubeLiveCurrent(): ?array {
+    $raw = getSetting('radio_youtube_now', '');
+    if ($raw === '') return null;
+    $now = json_decode($raw, true);
+    if (!is_array($now) || youtubeVideoId('https://youtu.be/' . ($now['id'] ?? '')) === null) return null;
+
+    $startedAt = (int) ($now['started_at'] ?? 0);
+    if (time() - $startedAt > YOUTUBE_LIVE_TTL) return null;
+    return ['id' => $now['id'], 'title' => (string) ($now['title'] ?? ''), 'started_at' => $startedAt];
+}
+
 /* ===== الإعدادات ===== */
 
 function getSetting(string $key, string $default = ''): string {

@@ -401,6 +401,71 @@ function liveDeleteVisual(int $id): bool {
     return true;
 }
 
+/* ===== بث يوتيوب: المذيع يلصق الرابط فتعرضه صفحة الراديو بدل البلاي ليست ===== */
+
+/** طلب GET قصير يرجّع [رمز HTTP أو 0 عند فشل الشبكة, النص] */
+function liveHttpGet(string $url): array {
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 4,
+            CURLOPT_CONNECTTIMEOUT => 3,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return [is_string($body) ? $code : 0, is_string($body) ? $body : ''];
+    }
+    $ctx  = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
+    $body = @file_get_contents($url, false, $ctx);
+    $code = 0;
+    if (isset($http_response_header[0]) && preg_match('#\s(\d{3})\s#', $http_response_header[0] . ' ', $m)) $code = (int) $m[1];
+    return [$code, is_string($body) ? $body : ''];
+}
+
+/**
+ * ينشر بث يوتيوب على الموقع، ويحلّ محلّ أي بث منشور قبله. يُفحص عبر oEmbed
+ * أولاً: 401 = صاحب القناة منع التضمين، 400/404 = غير موجود أو خاص. أي فشل
+ * آخر يُقبل مع تحذير — قد يكون يوتيوب محجوباً عن السيرفر لا عن الزوار.
+ * يرجّع [نجاح, رسالة الخطأ أو التحذير أو ''].
+ */
+function liveYoutubeStart(string $url, int $adminId): array {
+    $id = youtubeVideoId($url);
+    if ($id === null) return [false, 'هذا ليس رابط يوتيوب — انسخ رابط البث من يوتيوب أو StreamYard'];
+
+    [$code, $body] = liveHttpGet('https://www.youtube.com/oembed?format=json&url=' . rawurlencode('https://www.youtube.com/watch?v=' . $id));
+    liveLog('youtube_check', ['video' => $id, 'oembed' => $code]);
+
+    if ($code === 401 || $code === 403) {
+        return [false, 'يوتيوب يمنع عرض هذا البث خارج يوتيوب — فعّل «Allow embedding» من YouTube Studio'];
+    }
+    if ($code === 400 || $code === 404) {
+        return [false, 'الفيديو غير موجود أو خاص — اجعله عاماً أو غير مدرج (Unlisted)'];
+    }
+
+    $title   = '';
+    $warning = '';
+    if ($code === 200) {
+        $data  = json_decode($body, true);
+        $title = mb_substr(trim((string) ($data['title'] ?? '')), 0, 160);
+    } else {
+        $warning = 'نُشر البث، لكن تعذّر التحقق منه من يوتيوب — افتح صفحة الراديو وتأكد أنه يعمل';
+    }
+
+    setSetting('radio_youtube_now', json_encode(
+        ['id' => $id, 'title' => $title, 'started_at' => time()],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    ));
+    liveLog('youtube_start', ['video' => $id, 'admin' => $adminId]);
+    return [true, $warning];
+}
+
+function liveYoutubeStop(int $adminId): void {
+    setSetting('radio_youtube_now', '');
+    liveLog('youtube_stop', ['admin' => $adminId]);
+}
+
 /* ===== الحالة العامة للزوار وشاشة الاستوديو ===== */
 
 /**
@@ -408,8 +473,10 @@ function liveDeleteVisual(int $id): bool {
  * معرّفات. لا يرمي أبداً؛ عند أي فشل ترجع حالة فارغة صالحة.
  */
 function livePublicState(): array {
-    $state = ['on_air' => [], 'visual' => null, 'delay' => LIVE_VISUAL_DELAY_DEFAULT, 'now' => time()];
+    $state = ['on_air' => [], 'visual' => null, 'delay' => LIVE_VISUAL_DELAY_DEFAULT, 'youtube' => null, 'now' => time()];
     try {
+        // أولاً: لا يعتمد على المحرّك، فتعطّل المحرّك لا يُخفي بث يوتيوب
+        $state['youtube'] = youtubeLiveCurrent();
         foreach (array_keys(LIVE_SLOTS) as $slot) {
             if (liveSlotConnected($slot)) {
                 $owner = liveSlotOwner($slot);

@@ -69,6 +69,9 @@ if (!preg_match('#^https?://#i', $shareImage)) $shareImage = rtrim(SITE_URL, '/'
                     <span id="nowPlayingRemaining" class="now-playing-remaining" hidden></span>
                     <span id="nowPlayingLive" class="now-playing-live" hidden>مباشر الآن</span>
                 </div>
+                <div class="youtube-live-badge" id="youtubeBadge" hidden>
+                    <i class="fab fa-youtube"></i> <span id="youtubeBadgeText"></span>
+                </div>
             </div>
 
             <div class="radio-body">
@@ -83,6 +86,7 @@ if (!preg_match('#^https?://#i', $shareImage)) $shareImage = rtrim(SITE_URL, '/'
                         <?php endif; ?>
                     </div>
                     <div class="live-visual" id="liveVisual" aria-live="polite"></div>
+                    <div class="youtube-stage" id="youtubeStage" hidden><div id="youtubePlayer"></div></div>
                     <div class="equalizer" id="equalizer">
                         <span></span><span></span><span></span><span></span><span></span>
                     </div>
@@ -92,6 +96,9 @@ if (!preg_match('#^https?://#i', $shareImage)) $shareImage = rtrim(SITE_URL, '/'
                     <h1 class="station-name"><?= e($radioConfig['station_name']) ?></h1>
                     <p class="tagline"><?= e($radioConfig['tagline']) ?></p>
                     <p class="description"><?= nl2br(e($radioConfig['description'])) ?></p>
+                    <a class="youtube-open" id="youtubeOpen" href="#" target="_blank" rel="noopener" hidden>
+                        <i class="fab fa-youtube"></i> افتح البث على يوتيوب
+                    </a>
                 </div>
 
                 <div class="player-controls">

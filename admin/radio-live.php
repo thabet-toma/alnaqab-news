@@ -81,6 +81,30 @@ $shareText = getRadioConfig()['station_name'] . ' — بث مباشر الآن';
 
                 <div class="alert alert-danger" id="liveNotice" role="alert" hidden></div>
 
+                <!-- ===== بث يوتيوب ===== -->
+                <section class="content-panel">
+                    <h3>بث يوتيوب (StreamYard)</h3>
+                    <p class="form-hint">أثناء البث المباشر الصق رابطه من يوتيوب: صفحة الراديو تعرض الفيديو بدل البلاي ليست، ويظهر شريط «مباشر الآن» في كل صفحات الموقع. حين ينتهي البث على يوتيوب ترجع الصفحة للبلاي ليست وحدها.</p>
+
+                    <div class="studio-youtube-now" id="youtubeNow" hidden>
+                        <img class="studio-youtube-thumb" id="youtubeThumb" alt="">
+                        <div class="studio-youtube-info">
+                            <strong id="youtubeTitle"></strong>
+                            <span class="form-hint" id="youtubeSince"></span>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-sm" id="youtubeStop">أنهِ البث</button>
+                    </div>
+                    <p class="form-hint studio-youtube-expired" id="youtubeExpired" hidden>انتهى آخر بث تلقائياً بعد 6 ساعات من نشره.</p>
+
+                    <form id="youtubeForm">
+                        <label for="youtubeUrl">رابط البث على يوتيوب</label>
+                        <div class="studio-youtube-row">
+                            <input type="url" id="youtubeUrl" class="form-control" dir="ltr" placeholder="https://youtube.com/live/..." required>
+                            <button type="submit" class="btn btn-primary">اعرض على الموقع</button>
+                        </div>
+                    </form>
+                </section>
+
                 <!-- ===== من على الهواء ===== -->
                 <div class="studio-slots">
                     <?php foreach ([1 => 'المذيع', 2 => 'الضيف'] as $slotNo => $slotLabel): ?>

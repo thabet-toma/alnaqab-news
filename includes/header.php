@@ -12,6 +12,8 @@ $activeCategories = getCategories(true);
 $breakingNews = getBreakingNews(8);
 $radioConfig = getRadioConfig();
 $headerAd = getActiveAds('header');
+// بث يوتيوب الجاري: أي فشل هنا يُخفي الشريط فقط ولا يكسر الصفحة
+try { $youtubeLive = youtubeLiveCurrent(); } catch (Throwable $e) { $youtubeLive = null; }
 
 // Get current URL path for active state
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -53,6 +55,18 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
     <link rel="stylesheet" href="<?= SITE_URL ?>/assets/css/main.css?v=<?= time() ?>">
 </head>
 <body>
+
+<?php if ($youtubeLive): ?>
+<!-- Live Strip: بث يوتيوب منشور من الاستوديو المباشر -->
+<a href="<?= SITE_URL ?>/radio.php" class="live-strip">
+    <span class="live-strip-dot"></span>
+    <strong>مباشر الآن</strong>
+    <?php if ($youtubeLive['title'] !== ''): ?>
+        <span class="live-strip-title"><?= e($youtubeLive['title']) ?></span>
+    <?php endif; ?>
+    <span class="live-strip-cta">شاهد <i class="fas fa-arrow-left"></i></span>
+</a>
+<?php endif; ?>
 
 <!-- Top Bar -->
 <div class="top-bar">

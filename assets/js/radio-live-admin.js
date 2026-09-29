@@ -188,18 +188,64 @@ document.addEventListener('DOMContentLoaded', () => {
         delayDirty = false;
     });
 
+    /* ===== بث يوتيوب ===== */
+
+    const youtubeNow = document.getElementById('youtubeNow');
+    const youtubeThumb = document.getElementById('youtubeThumb');
+    const youtubeTitle = document.getElementById('youtubeTitle');
+    const youtubeSince = document.getElementById('youtubeSince');
+    const youtubeExpired = document.getElementById('youtubeExpired');
+    const youtubeForm = document.getElementById('youtubeForm');
+    const youtubeUrl = document.getElementById('youtubeUrl');
+    // يرتفع مع كل نشر أو إنهاء: ردّ استطلاع بدأ قبل الضغطة قديم ولا يُرسم
+    let youtubeSeq = 0;
+
+    function renderYoutube(yt, expired) {
+        youtubeNow.hidden = !yt;
+        youtubeExpired.hidden = !expired;
+        if (!yt) return;
+        const thumb = 'https://i.ytimg.com/vi/' + encodeURIComponent(yt.id) + '/hqdefault.jpg';
+        if (youtubeThumb.getAttribute('src') !== thumb) youtubeThumb.src = thumb;
+        youtubeTitle.textContent = yt.title || 'بث مباشر';
+        const d = new Date(yt.started_at * 1000);
+        youtubeSince.textContent = 'على الموقع منذ ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    youtubeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = youtubeForm.querySelector('button');
+        btn.disabled = true;
+        const data = await api('youtube_start', { url: youtubeUrl.value.trim() });
+        btn.disabled = false;
+        if (!data.success) return;
+        if (data.warning) showNotice(data.warning);
+        youtubeForm.reset();
+        youtubeSeq++;
+        renderYoutube(data.youtube, false);
+    });
+
+    document.getElementById('youtubeStop').addEventListener('click', async () => {
+        if (!confirm('إنهاء عرض البث على الموقع؟ صفحة الراديو ترجع للبلاي ليست.')) return;
+        const data = await api('youtube_stop');
+        if (!data.success) return;
+        youtubeSeq++;
+        renderYoutube(null, false);
+    });
+
     /* ===== الاستطلاع ===== */
 
     let polling = false;
     async function refresh() {
         if (polling) return;
         polling = true;
+        const seq = youtubeSeq;
         try {
             const data = await api('state');
             if (data.success) {
                 data.slots.forEach((s) => renderSlot(s, data.engine));
                 renderGuests(data.guests);
                 renderVisual(data.visual, data.delay);
+                if (seq === youtubeSeq) renderYoutube(data.youtube, data.youtube_expired);
             }
         } catch (e) {
             // انقطاع مؤقت — الاستطلاع التالي يصحّح

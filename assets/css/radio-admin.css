@@ -561,8 +561,50 @@ body.is-reordering {
     padding-bottom: 8px;
 }
 
+/* بث يوتيوب: كرت البث المنشور وحقل الرابط */
+.studio-youtube-now {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: rgba(230, 57, 70, 0.1);
+    border: 1px solid #7a2a2a;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+}
+.studio-youtube-now[hidden] { display: none; }
+
+.studio-youtube-thumb {
+    width: 120px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #000;
+    flex-shrink: 0;
+}
+
+.studio-youtube-info {
+    flex: 1;
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* .form-hint في admin.css يفرض display:block فيتجاوز خاصية hidden */
+.studio-youtube-expired[hidden] { display: none; }
+
+.studio-youtube-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+.studio-youtube-row .form-control { flex: 1; min-width: 0; }
+
 @media (max-width: 800px) {
     .studio-slots { grid-template-columns: 1fr; }
+    .studio-youtube-row { flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {

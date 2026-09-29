@@ -177,5 +177,14 @@ ALTER TABLE radio_schedule
 6. **تحقّق:** الأغاني تُسمع بترتيب البلاي ليست لا عشوائياً · شارة صفحة الراديو
    تعرض `4/20` وزمناً يتناقص · موعد تجريبي بعد دقيقتين يبدّل البلاي ليست فعلاً.
 
+## [YOUTUBE LIVE — بث StreamYard على الموقع]
+| Item | Value |
+|------|-------|
+| التحكم | `admin/radio-live.php` — قسم «بث يوتيوب»: رابط ← «اعرض على الموقع» / «أنهِ البث» |
+| التخزين | `settings.radio_youtube_now` = `{id, title, started_at}` — بلا تغيير مخطّط |
+| الزوار | `radio.php` تقلب بين يوتيوب والبلاي ليست عبر `api/live-state.php` (المفتاح `youtube`) · شريط «مباشر الآن» في `includes/header.php` |
+| الإنهاء | زر «أنهِ» · ENDED من المشغّل · تلقائياً بعد 6 ساعات |
+| الخطة | `docs/plans/youtube-live-plan.md` |
+
 ## [ORPHANS & PENDING]
 - None. All tasks completed successfully.

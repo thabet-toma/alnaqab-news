@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let userStopped = false;   // أوقف المستخدم البث بنفسه؟ عندها لا نعيد الاتصال تلقائياً
     let retryCount = 0;
     let retryTimer = null;
+    // بث يوتيوب (القسم 11): رقم الفيديو المعروض الآن ومشغّله — الراديو صامت طواله
+    let ytActiveId = null;
+    let ytPlayer = null;
 
     function hasConsent() {
         try { return localStorage.getItem(CONSENT_KEY) === '1'; } catch (e) { return false; }
@@ -131,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function togglePlay() {
-        if (isConnecting) return;
+        if (isConnecting || ytActiveId) return; // أثناء بث يوتيوب التحكم من المشغّل نفسه
         if (isPlaying) stopPlayback();
         else startPlayback({ allowMuted: false }); // ضغطة المستخدم تسمح بالصوت أصلاً
     }
@@ -185,6 +188,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (unmuteBtn) {
             unmuteBtn.addEventListener('click', () => {
+                if (ytPlayer && typeof ytPlayer.unMute === 'function') {
+                    ytPlayer.unMute();
+                    ytPlayer.playVideo();
+                    rememberConsent();
+                    hideUnmuteOverlay();
+                    return;
+                }
                 audio.muted = false;
                 if (audio.volume === 0) {
                     audio.volume = 1;
@@ -314,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (diff <= 0) {
             stopSleepTimer();
             if (isPlaying) stopPlayback(); // يوقف البث ويمنع إعادة الاتصال التلقائي
+            if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
             showToast('انتهى مؤقت النوم');
             return;
         }
@@ -544,9 +555,169 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initNowPlaying();
 
+    // 11. بث يوتيوب — حين ينشر المذيع رابط بث من غرفة التحكم يحلّ الفيديو محلّ
+    // الراديو في هذه الصفحة، وحين ينتهي نرجع للبلاي ليست. الحالة تصل مع استطلاع
+    // live-state نفسه، ومكتبة يوتيوب لا تُحمَّل إلا عند أول بث.
+    const ytStage = document.getElementById('youtubeStage');
+    const ytBadge = document.getElementById('youtubeBadge');
+    const ytBadgeText = document.getElementById('youtubeBadgeText');
+    const ytOpen = document.getElementById('youtubeOpen');
+    const YT_DISMISSED_KEY = 'radio:youtubeDismissed';
+    const YT_ENDED = 0;
+    const YT_PLAYING = 1;
+    const YT_BUFFERING = 3;
+
+    let ytResumeRadio = false;  // كان الراديو شغّالاً قبل البث؟ يعود بعده
+    let ytFailedId = null;      // بث تعذّر عرضه هنا: يبقى زر «افتح على يوتيوب» ما دام منشوراً
+    let ytFirstState = true;    // أول حالة بعد فتح الصفحة لا تستحق رسالة «بدأ البث»
+    let ytApiPromise = null;
+    let ytCheckTimer = null;
+
+    // بث انتهى أو فشل عند هذا الزائر لا يعود للظهور حتى ينشر المذيع رابطاً آخر
+    const ytDismissed = new Set((() => {
+        try {
+            const list = JSON.parse(sessionStorage.getItem(YT_DISMISSED_KEY) || '[]');
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+    })());
+
+    function ytDismiss(id) {
+        ytDismissed.add(id);
+        try { sessionStorage.setItem(YT_DISMISSED_KEY, JSON.stringify([...ytDismissed].slice(-20))); } catch (e) { /* وضع التصفح الخاص */ }
+    }
+
+    function loadYoutubeApi() {
+        if (window.YT && window.YT.Player) return Promise.resolve();
+        if (!ytApiPromise) {
+            ytApiPromise = new Promise((resolve, reject) => {
+                const prev = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+                const script = document.createElement('script');
+                script.src = 'https://www.youtube.com/iframe_api';
+                script.onerror = reject;
+                document.head.appendChild(script);
+                setTimeout(reject, 10000); // محجوب أو شبكة بطيئة جداً
+            }).catch((err) => { ytApiPromise = null; throw err; });
+        }
+        return ytApiPromise;
+    }
+
+    function ytSetTitle(yt) {
+        ytBadgeText.textContent = 'مباشر على يوتيوب' + (yt.title ? ' · ' + yt.title : '');
+    }
+
+    function ytShowOpenLink(id) {
+        ytOpen.href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(id);
+        ytOpen.hidden = false;
+    }
+
+    // المتصفح قد يمنع التشغيل بصوت: نشغّل مكتوماً ونطلب ضغطة واحدة كالراديو
+    function ytEnsureSound(id) {
+        clearTimeout(ytCheckTimer);
+        ytCheckTimer = setTimeout(() => {
+            if (ytActiveId !== id || !ytPlayer) return;
+            const state = ytPlayer.getPlayerState();
+            if (state !== YT_PLAYING && state !== YT_BUFFERING) {
+                ytPlayer.mute();
+                ytPlayer.playVideo();
+                showUnmuteOverlay();
+            } else if (ytPlayer.isMuted()) {
+                showUnmuteOverlay();
+            }
+        }, 2500);
+    }
+
+    function enterYoutube(yt) {
+        const id = yt.id;
+        if (isPlaying || isConnecting) {
+            ytResumeRadio = true;
+            stopPlayback();
+        }
+        ytActiveId = id;
+        document.body.classList.add('youtube-mode');
+        ytStage.hidden = false;
+        ytSetTitle(yt);
+        ytBadge.hidden = false;
+        if (onAirText) onAirText.textContent = 'على الهواء';
+        if (onAirBadge) onAirBadge.classList.remove('offline');
+        ytShowOpenLink(id);
+        if (!ytFirstState) showToast('بدأ البث المباشر');
+
+        loadYoutubeApi().then(() => {
+            if (ytActiveId !== id) return; // انتهى أو تبدّل أثناء التحميل
+            ytPlayer = new YT.Player('youtubePlayer', {
+                videoId: id,
+                playerVars: { autoplay: 1, playsinline: 1, rel: 0, origin: window.location.origin },
+                events: {
+                    onReady: (e) => {
+                        e.target.playVideo();
+                        ytEnsureSound(id);
+                    },
+                    onStateChange: (e) => {
+                        if (e.data !== YT_ENDED || ytActiveId !== id) return;
+                        ytDismiss(id);
+                        leaveYoutube(true);
+                        showToast('انتهى البث المباشر');
+                    },
+                    // 2 رقم خاطئ · 5 المشغّل · 100 محذوف · 101/150 التضمين ممنوع · 153 الـ Referer محجوب
+                    onError: () => { if (ytActiveId === id) ytFail(id); },
+                },
+            });
+        }).catch(() => { if (ytActiveId === id) ytFail(id); });
+    }
+
+    function leaveYoutube(resume) {
+        clearTimeout(ytCheckTimer);
+        if (ytPlayer) {
+            try { ytPlayer.destroy(); } catch (e) { /* لم يكتمل تحميله */ }
+            ytPlayer = null;
+        }
+        const holder = document.createElement('div');
+        holder.id = 'youtubePlayer';
+        ytStage.replaceChildren(holder);
+        ytStage.hidden = true;
+        ytActiveId = null;
+        document.body.classList.remove('youtube-mode');
+        ytBadge.hidden = true;
+        ytOpen.hidden = true;
+        hideUnmuteOverlay();
+        updateUIState();
+        if (resume && ytResumeRadio) {
+            ytResumeRadio = false;
+            startPlayback({ allowMuted: true });
+        }
+    }
+
+    // تعذّر العرض هنا (منع تضمين، مانع إعلانات، شبكة): رجوع للراديو + زر يوتيوب
+    function ytFail(id) {
+        ytDismiss(id);
+        ytFailedId = id;
+        leaveYoutube(true);
+        ytShowOpenLink(id);
+    }
+
+    function applyYoutube(yt) {
+        const id = yt && yt.id && !ytDismissed.has(yt.id) ? yt.id : null;
+        if (id !== ytActiveId) {
+            if (ytActiveId) leaveYoutube(!id); // تبديل رابط بآخر لا يعيد الراديو بينهما
+            if (id) enterYoutube(yt);
+        } else if (id) {
+            ytSetTitle(yt);
+        }
+        if (!id && ytFailedId) {
+            if (yt && yt.id === ytFailedId) ytShowOpenLink(ytFailedId);
+            else { ytFailedId = null; ytOpen.hidden = true; }
+        }
+        ytFirstState = false;
+    }
+
     // الصورة أو الفيديو الذي يعرضه المذيع من غرفة التحكم يغطّي المعرض أثناء العرض
     const liveVisual = document.getElementById('liveVisual');
     if (liveVisual && window.LiveVisual && RADIO_CONFIG.liveStateUrl) {
-        LiveVisual.attach(liveVisual, { stateUrl: RADIO_CONFIG.liveStateUrl, pollMs: 5000 });
+        LiveVisual.attach(liveVisual, {
+            stateUrl: RADIO_CONFIG.liveStateUrl,
+            pollMs: 5000,
+            onState: (state) => applyYoutube(state.youtube),
+        });
     }
 });
