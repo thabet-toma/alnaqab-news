@@ -390,6 +390,61 @@ function uploadImage(array $file, string $subdir = 'articles'): ?string {
     return null;
 }
 
+/* ===== النشر التلقائي على صفحة فيسبوك ===== */
+
+/**
+ * ينشر خبراً منشوراً على صفحة فيسبوك مرّة واحدة (العمود fb_post_id يمنع التكرار).
+ * لا يرمي استثناءً ولا يعطّل حفظ الخبر: أي فشل يُسجَّل في error_log فقط.
+ * يعمل فقط لو عُرِّف FB_PAGE_ID و FB_PAGE_TOKEN في config.php.
+ */
+function facebookPostArticle(int $articleId): bool {
+    if (!defined('FB_PAGE_ID') || !defined('FB_PAGE_TOKEN') || FB_PAGE_ID === '' || FB_PAGE_TOKEN === '') return false;
+    if (!function_exists('curl_init')) return false;
+
+    $article = getArticleById($articleId);
+    // غياب المفتاح يعني أن ALTER TABLE لم يُنفَّذ بعد — نمتنع كي لا يتكرر النشر
+    if (!$article || !array_key_exists('fb_post_id', $article)) return false;
+    if ($article['status'] !== 'published' || $article['fb_post_id'] !== null) return false;
+
+    // نحجز الخبر ذرّياً حتى لا ينشره طلبان متزامنان (ضغطتا حفظ)
+    $claim = db()->prepare("UPDATE articles SET fb_post_id = 'pending' WHERE id = ? AND fb_post_id IS NULL");
+    $claim->execute([$articleId]);
+    if ($claim->rowCount() === 0) return false;
+
+    $message = $article['title'];
+    $summary = excerpt($article['excerpt'] ?: $article['body'], 30);
+    if ($summary !== '') $message .= "\n\n" . $summary;
+
+    $ch = curl_init('https://graph.facebook.com/v23.0/' . rawurlencode(FB_PAGE_ID) . '/feed');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => [
+            'message'      => $message,
+            'link'         => rtrim(SITE_URL, '/') . '/article.php?id=' . $articleId,
+            'access_token' => FB_PAGE_TOKEN,
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT        => 8,
+    ]);
+    $raw  = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $data   = is_string($raw) ? json_decode($raw, true) : null;
+    $postId = is_array($data) ? (string) ($data['id'] ?? '') : '';
+
+    if ($postId === '') {
+        db()->prepare('UPDATE articles SET fb_post_id = NULL WHERE id = ?')->execute([$articleId]);
+        $why = is_array($data) ? (string) ($data['error']['message'] ?? '') : '';
+        error_log("facebookPostArticle: article $articleId failed (HTTP $code) $why");
+        return false;
+    }
+
+    db()->prepare('UPDATE articles SET fb_post_id = ? WHERE id = ?')->execute([$postId, $articleId]);
+    return true;
+}
+
 /* ===== ترقيم الصفحات (Pagination HTML) ===== */
 
 function paginationHtml(int $currentPage, int $totalPages, string $baseUrl): string {

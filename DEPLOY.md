@@ -107,6 +107,10 @@ nano includes/config.php
 | `DB_USER` | `naqab` |
 | `DB_PASS` | كلمة السر التي وضعتها فوق |
 | `SITE_URL` | `https://example.com` — **بدون `/` في النهاية** |
+| `FB_PAGE_ID` / `FB_PAGE_TOKEN` | اختياري: رقم صفحة فيسبوك وPage Access Token (صلاحية `pages_manage_posts`) للنشر التلقائي عند إضافة خبر. اتركهما فارغين لتعطيله |
+
+> للسيرفر الشغّال (الجدول موجود أصلاً) نفّذ مرّة واحدة قبل تفعيل النشر التلقائي:
+> `ALTER TABLE articles ADD COLUMN fb_post_id VARCHAR(64) DEFAULT NULL AFTER status;`
 
 احفظ بـ `Ctrl+O` ثم `Enter`، واخرج بـ `Ctrl+X`.
 

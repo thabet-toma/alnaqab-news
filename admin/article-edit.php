@@ -68,6 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($error)) {
+        // الخبر الذي كان منشوراً أصلاً لا يُعاد نشره على فيسبوك عند تعديله
+        $wasPublished = $isEdit && $article['status'] === 'published';
         if ($isEdit) {
             $stmt = $db->prepare("UPDATE articles SET 
                 title = ?, slug = ?, excerpt = ?, body = ?, image = ?, 
@@ -79,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $author_name, $status, $id
             ]);
             $success = 'تم تحديث المقال بنجاح';
+            if (!$wasPublished && $status === 'published') facebookPostArticle($id);
             $article = getArticleById($id);
         } else {
             $stmt = $db->prepare("INSERT INTO articles 
@@ -89,6 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $category_id, $type, $is_featured, $is_breaking,
                 $author_name, $status
             ]);
+            if ($status === 'published') facebookPostArticle((int) $db->lastInsertId());
             header("Location: articles.php");
             exit;
         }

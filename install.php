@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 views INT DEFAULT 0,
                 author_name VARCHAR(100),
                 status ENUM('draft','published') DEFAULT 'published',
+                fb_post_id VARCHAR(64) DEFAULT NULL COMMENT 'رقم منشور فيسبوك — NULL = لم يُنشر بعد',
                 published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
