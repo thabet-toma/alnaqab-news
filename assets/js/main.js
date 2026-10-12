@@ -1,4 +1,4 @@
-// assets/js/main.js — موقع النقب الإخباري
+// assets/js/main.js — منصة كترا الإخبارية
 
 document.addEventListener('DOMContentLoaded', () => {
     

@@ -98,8 +98,8 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
             </div>
             <div class="brand-text">
                 <div class="site-title-wrap">
-                    <span class="site-title-main">موقع النقب</span>
-                    <span class="site-title-tag">الإخباري</span>
+                    <span class="site-title-main">منصة كترا</span>
+                    <span class="site-title-tag">الإخبارية</span>
                 </div>
                 <span class="site-tagline">صوت النقب ونبض المجتمع الفلسطيني في الداخل</span>
             </div>

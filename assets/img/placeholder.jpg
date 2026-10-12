@@ -31,6 +31,6 @@
   </g>
   
   <!-- Text branding -->
-  <text x="400" y="295" font-family="'Tajawal', system-ui, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="1">موقع النقب الإخباري</text>
+  <text x="400" y="295" font-family="'Tajawal', system-ui, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="1">منصة كترا الإخبارية</text>
   <text x="400" y="325" font-family="'Tajawal', system-ui, sans-serif" font-size="14" font-weight="500" fill="#94a3b8" text-anchor="middle">صوت النقب ونبض المجتمع</text>
 </svg>

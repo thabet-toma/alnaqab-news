@@ -102,7 +102,7 @@ $radioConfig = getRadioConfig();
             <div class="footer-col footer-brand-col">
                 <div class="footer-logo">
                     <div class="footer-logo-badge"><i class="fas fa-newspaper"></i></div>
-                    <span class="footer-logo-title">موقع النقب الإخباري</span>
+                    <span class="footer-logo-title">منصة كترا الإخبارية</span>
                 </div>
                 <p class="footer-desc"><?= e(SITE_DESC) ?> — المنصة الإخبارية المستقلة الأولى لأخبار وقضايا النقب والداخل الفلسطيني على مدار الساعة.</p>
                 <div class="footer-social-bar">

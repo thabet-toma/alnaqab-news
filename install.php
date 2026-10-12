@@ -1,6 +1,6 @@
 <?php
 /**
- * موقع النقب الإخباري — سكريبت التثبيت
+ * منصة كترا الإخبارية — سكريبت التثبيت
  * يُنشئ قاعدة البيانات والجداول وأول حساب أدمن
  * ⚠️ احذف هذا الملف بعد التثبيت لأسباب أمنية
  */
@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
 
             // إدخال إعدادات افتراضية
             $pdo->exec("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES
-                ('site_name', 'موقع النقب الإخباري'),
+                ('site_name', 'منصة كترا الإخبارية'),
                 ('site_description', 'أخبار، مقالات، وراديو مباشر من قلب النقب'),
                 ('facebook_url', ''),
                 ('twitter_url', ''),
@@ -290,7 +290,7 @@ foreach ($uploadDirs as $dir) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>تثبيت موقع النقب الإخباري</title>
+<title>تثبيت منصة كترا الإخبارية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -320,7 +320,7 @@ h1{font-size:28px;font-weight:800;color:#d4213d;margin-bottom:6px;text-align:cen
 </head>
 <body>
 <div class="card">
-    <h1>🏗️ تثبيت موقع النقب</h1>
+    <h1>🏗️ تثبيت منصة كترا</h1>
     <p class="sub">إعداد قاعدة البيانات وحساب المدير</p>
 
     <div class="step">

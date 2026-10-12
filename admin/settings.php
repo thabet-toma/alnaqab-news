@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="hidden" name="save_settings" value="1">
                             <div class="form-group">
                                 <label for="site_name">اسم الموقع</label>
-                                <input type="text" name="site_name" id="site_name" class="form-control" value="<?php echo e(getSetting('site_name', 'النقب الإخباري')); ?>" required>
+                                <input type="text" name="site_name" id="site_name" class="form-control" value="<?php echo e(getSetting('site_name', 'منصة كترا الإخبارية')); ?>" required>
                             </div>
                             <div class="form-group">
                                 <label for="site_description">وصف الموقع (SEO)</label>

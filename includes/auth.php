@@ -1,6 +1,6 @@
 <?php
 /**
- * موقع النقب الإخباري — مصادقة الأدمن (Session-based)
+ * منصة كترا الإخبارية — مصادقة الأدمن (Session-based)
  */
 
 require_once __DIR__ . '/config.php';

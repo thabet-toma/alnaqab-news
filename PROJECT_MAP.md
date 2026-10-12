@@ -1,4 +1,4 @@
-# PROJECT_MAP.md — موقع النقب الإخباري
+# PROJECT_MAP.md — منصة كترا الإخبارية
 
 ## [TECH_STACK]
 | Layer | Technology | Version |

@@ -1,6 +1,6 @@
 <?php
 /**
- * موقع النقب الإخباري — اتصال قاعدة البيانات (PDO Singleton)
+ * منصة كترا الإخبارية — اتصال قاعدة البيانات (PDO Singleton)
  */
 
 require_once __DIR__ . '/config.php';
