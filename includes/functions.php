@@ -94,7 +94,9 @@ function getLatestArticles(int $page = 1, int $perPage = 12, ?int $categoryId = 
     $params = [];
 
     if ($categoryId) {
-        $where[] = 'a.category_id = ?';
+        // القسم وأبناؤه المباشرون — قسم واحد من المستوى الأعلى يشمل فروعه
+        $where[] = '(a.category_id = ? OR a.category_id IN (SELECT id FROM categories WHERE parent_id = ?))';
+        $params[] = $categoryId;
         $params[] = $categoryId;
     }
     if ($type) {
@@ -206,9 +208,65 @@ function searchArticles(string $term, int $page = 1, int $perPage = 12): array {
 
 /* ===== التصنيفات ===== */
 
+/** أقسام المستوى الأعلى فقط (بلا أب) — الهيدر والفوتر يعرضان الرئيسية دون الفرعية */
 function getCategories(bool $activeOnly = true): array {
-    $where = $activeOnly ? 'WHERE is_active = 1' : '';
-    return db()->query("SELECT * FROM categories $where ORDER BY sort_order, name")->fetchAll();
+    $sql = 'SELECT * FROM categories WHERE parent_id IS NULL';
+    if ($activeOnly) $sql .= ' AND is_active = 1';
+    $sql .= ' ORDER BY sort_order, name';
+    return db()->query($sql)->fetchAll();
+}
+
+/** كل الأقسام: كل أب يليه أبناؤه المباشرون مرتّبين بـ sort_order ثم الاسم */
+function getAllCategories(bool $activeOnly = true): array {
+    $sql = 'SELECT * FROM categories';
+    if ($activeOnly) $sql .= ' WHERE is_active = 1';
+    $sql .= ' ORDER BY sort_order, name';
+    $rows = db()->query($sql)->fetchAll();
+
+    $parents = [];
+    $childrenByParent = [];
+    foreach ($rows as $row) {
+        if ($row['parent_id'] === null) {
+            $parents[] = $row;
+        } else {
+            $childrenByParent[(int) $row['parent_id']][] = $row;
+        }
+    }
+
+    $ordered = [];
+    foreach ($parents as $parent) {
+        $ordered[] = $parent;
+        foreach ($childrenByParent[(int) $parent['id']] ?? [] as $child) {
+            $ordered[] = $child;
+        }
+        unset($childrenByParent[(int) $parent['id']]);
+    }
+    // أبناء غير ظاهر آباؤهم في هذه القائمة (أب معطَّل مثلاً) — لا نُسقطهم
+    foreach ($childrenByParent as $orphans) {
+        foreach ($orphans as $child) $ordered[] = $child;
+    }
+
+    return $ordered;
+}
+
+/** الأبناء المباشرون لقسم معيّن */
+function getChildCategories(int $parentId, bool $activeOnly = true): array {
+    $sql = 'SELECT * FROM categories WHERE parent_id = ?';
+    if ($activeOnly) $sql .= ' AND is_active = 1';
+    $sql .= ' ORDER BY sort_order, name';
+    $stmt = db()->prepare($sql);
+    $stmt->execute([$parentId]);
+    return $stmt->fetchAll();
+}
+
+/** أقسام المستوى الأعلى مع مفتاح children لكل منها */
+function getCategoriesWithChildren(bool $activeOnly = true): array {
+    $parents = getCategories($activeOnly);
+    foreach ($parents as &$parent) {
+        $parent['children'] = getChildCategories((int) $parent['id'], $activeOnly);
+    }
+    unset($parent);
+    return $parents;
 }
 
 function getCategoryById(int $id): ?array {

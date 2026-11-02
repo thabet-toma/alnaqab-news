@@ -209,6 +209,11 @@ a {
     background-color: rgba(255,255,255,0.02);
 }
 
+/* Subcategories — إزاحة صف القسم الفرعي تحت أبيه */
+.subcategory-row td:first-child {
+    padding-right: 34px;
+}
+
 /* Badges */
 .badge {
     padding: 4px 8px;

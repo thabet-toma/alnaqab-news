@@ -8,7 +8,7 @@ if (!defined('SITE_URL')) {
 }
 
 $page_title = isset($pageTitle) ? e($pageTitle) . ' | ' . SITE_NAME : SITE_NAME . ' | ' . SITE_DESC;
-$activeCategories = getCategories(true);
+$activeCategories = getCategoriesWithChildren(true);
 $breakingNews = getBreakingNews(8);
 $radioConfig = getRadioConfig();
 $headerAd = getActiveAds('header');
@@ -18,6 +18,8 @@ try { $youtubeLive = youtubeLiveCurrent(); } catch (Throwable $e) { $youtubeLive
 // Get current URL path for active state
 $current_page = basename($_SERVER['PHP_SELF']);
 $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GET['id'] : 0;
+// القسم الحالي مرة واحدة — لتحديد حالة الأب والابن في القائمة بلا استعلامات إضافية
+$currentCategory = $category_id ? (getCategoryById($category_id) ?: null) : null;
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -183,10 +185,28 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
                 </a>
             </li>
             <?php foreach ($activeCategories as $cat): ?>
-            <li class="nav-item">
-                <a href="<?= SITE_URL ?>/category.php?id=<?= $cat['id'] ?>" class="nav-link <?= $category_id == $cat['id'] ? 'active' : '' ?>">
+            <?php
+            $childCategories = $cat['children'] ?? [];
+            // الأب نشط أيضاً حين يكون القسم الحالي أحد أبنائه
+            $parentActive = $currentCategory !== null
+                && ((int) $currentCategory['id'] === (int) $cat['id']
+                    || (int) ($currentCategory['parent_id'] ?? 0) === (int) $cat['id']);
+            ?>
+            <li class="nav-item<?= $childCategories ? ' has-children' : '' ?>">
+                <a href="<?= SITE_URL ?>/category.php?id=<?= $cat['id'] ?>" class="nav-link <?= $parentActive ? 'active' : '' ?>">
                     <?= e($cat['name']) ?>
                 </a>
+                <?php if ($childCategories): ?>
+                <ul class="nav-submenu">
+                    <?php foreach ($childCategories as $child): ?>
+                    <li>
+                        <a href="<?= SITE_URL ?>/category.php?id=<?= $child['id'] ?>" class="nav-submenu-link <?= $currentCategory !== null && (int) $currentCategory['id'] === (int) $child['id'] ? 'active' : '' ?>">
+                            <?= e($child['name']) ?>
+                        </a>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
             </li>
             <?php endforeach; ?>
             <li class="nav-item nav-item-radio">

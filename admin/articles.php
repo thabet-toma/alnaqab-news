@@ -45,7 +45,7 @@ $stmt = $db->prepare($query);
 $stmt->execute($params);
 $articles = $stmt->fetchAll();
 
-$categories = getCategories(false);
+$categories = getAllCategories(false);
 
 ?>
 <!DOCTYPE html>
@@ -92,7 +92,7 @@ $categories = getCategories(false);
                             <select name="category_id" class="form-control form-control-sm">
                                 <option value="">كل الأقسام</option>
                                 <?php foreach ($categories as $cat): ?>
-                                    <option value="<?php echo $cat['id']; ?>" <?php echo $categoryId == $cat['id'] ? 'selected' : ''; ?>><?php echo e($cat['name']); ?></option>
+                                    <option value="<?php echo $cat['id']; ?>" <?php echo $categoryId == $cat['id'] ? 'selected' : ''; ?>><?php echo $cat['parent_id'] ? '— ' : ''; ?><?php echo e($cat['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <select name="type" class="form-control form-control-sm">

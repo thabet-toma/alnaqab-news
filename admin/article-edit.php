@@ -31,7 +31,7 @@ if ($isEdit) {
     }
 }
 
-$categories = getCategories(false);
+$categories = getAllCategories(false);
 $error = '';
 $success = '';
 
@@ -188,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select name="category_id" id="category_id" class="form-control" required>
                                     <option value="">اختر القسم</option>
                                     <?php foreach ($categories as $cat): ?>
-                                        <option value="<?php echo $cat['id']; ?>" <?php echo ($article['category_id'] ?? '') == $cat['id'] ? 'selected' : ''; ?>><?php echo e($cat['name']); ?></option>
+                                        <option value="<?php echo $cat['id']; ?>" <?php echo ($article['category_id'] ?? '') == $cat['id'] ? 'selected' : ''; ?>><?php echo $cat['parent_id'] ? '— ' : ''; ?><?php echo e($cat['name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>

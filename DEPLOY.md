@@ -112,6 +112,21 @@ nano includes/config.php
 > للسيرفر الشغّال (الجدول موجود أصلاً) نفّذ مرّة واحدة قبل تفعيل النشر التلقائي:
 > `ALTER TABLE articles ADD COLUMN fb_post_id VARCHAR(64) DEFAULT NULL AFTER status;`
 
+> للأقسام الفرعية على السيرفر الشغّال (الجدول موجود أصلاً) نفّذ مرّة واحدة:
+>
+> ```sql
+> ALTER TABLE categories ADD COLUMN parent_id INT DEFAULT NULL AFTER slug,
+>   ADD KEY fk_categories_parent (parent_id),
+>   ADD CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL;
+> SET @local := (SELECT id FROM categories WHERE slug = 'اخبار-محلية');
+> INSERT IGNORE INTO categories (name, slug, sort_order, parent_id) VALUES
+>   ('النقب','النقب',1,@local),
+>   ('اللد والرملة ويافا','اللد-والرملة-ويافا',2,@local),
+>   ('طولكرم','طولكرم',3,@local);
+> ```
+>
+> الأقسام الفرعية بمستوى واحد فقط، وأي مناطق أخرى تُضاف من لوحة التحكم ← الأقسام (اختر «القسم الأب»).
+
 احفظ بـ `Ctrl+O` ثم `Enter`، واخرج بـ `Ctrl+X`.
 
 > `config.php` غير مرفوع على Git، فلا تُفقد إعداداتك عند أي تحديث لاحق.

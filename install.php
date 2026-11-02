@@ -60,9 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 slug VARCHAR(100) UNIQUE NOT NULL,
+                parent_id INT DEFAULT NULL,
                 sort_order INT DEFAULT 0,
                 is_active TINYINT(1) DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                KEY fk_categories_parent (parent_id),
+                CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
             CREATE TABLE IF NOT EXISTS articles (
@@ -225,6 +228,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step !== 'error' && $step !== 'don
             $catStmt = $pdo->prepare('INSERT IGNORE INTO categories (name, slug, sort_order) VALUES (?, ?, ?)');
             foreach ($defaultCats as $cat) {
                 $catStmt->execute($cat);
+            }
+
+            // أقسام فرعية (مستوى واحد) تحت «أخبار محلية»
+            $localStmt = $pdo->prepare('SELECT id FROM categories WHERE slug = ? LIMIT 1');
+            $localStmt->execute(['اخبار-محلية']);
+            $localCategoryId = (int) $localStmt->fetchColumn();
+
+            if ($localCategoryId > 0) {
+                $subCatStmt = $pdo->prepare('INSERT IGNORE INTO categories (name, slug, sort_order, parent_id) VALUES (?, ?, ?, ?)');
+                $subCategories = [
+                    ['النقب', 'النقب', 1],
+                    ['اللد والرملة ويافا', 'اللد-والرملة-ويافا', 2],
+                    ['طولكرم', 'طولكرم', 3],
+                ];
+                foreach ($subCategories as $subCat) {
+                    $subCatStmt->execute([$subCat[0], $subCat[1], $subCat[2], $localCategoryId]);
+                }
             }
 
             // إدخال إعدادات افتراضية

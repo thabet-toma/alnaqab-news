@@ -18,16 +18,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slug = trim($_POST['slug'] ?? '');
         $sort_order = (int)($_POST['sort_order'] ?? 0);
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $parent_id = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
         
         if (empty($slug)) {
             $slug = slugify($name);
         }
         
+        // القسم الأب يجب أن يكون موجوداً ورئيسياً (مستوى واحد فقط)
+        $parentValid = true;
+        if ($parent_id !== null) {
+            $stmt = $db->prepare("SELECT id FROM categories WHERE id = ? AND parent_id IS NULL");
+            $stmt->execute([$parent_id]);
+            $parentValid = (bool)$stmt->fetchColumn();
+        }
+
         if (empty($name)) {
             $error = 'اسم القسم مطلوب';
+        } elseif (!$parentValid) {
+            $error = 'القسم الأب غير صالح';
         } else {
-            $stmt = $db->prepare("INSERT INTO categories (name, slug, sort_order, is_active) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$name, $slug, $sort_order, $is_active]);
+            $stmt = $db->prepare("INSERT INTO categories (name, slug, sort_order, is_active, parent_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $slug, $sort_order, $is_active, $parent_id]);
             $success = 'تمت إضافة القسم بنجاح';
         }
     } elseif (isset($_POST['edit_category'])) {
@@ -36,37 +47,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slug = trim($_POST['slug'] ?? '');
         $sort_order = (int)($_POST['sort_order'] ?? 0);
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $parent_id = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
         
         if (empty($slug)) {
             $slug = slugify($name);
         }
         
+        $parentValid = true;
+        if ($parent_id !== null) {
+            if ($parent_id === $id) {
+                $parentValid = false;
+            } else {
+                $stmt = $db->prepare("SELECT id FROM categories WHERE id = ? AND parent_id IS NULL");
+                $stmt->execute([$parent_id]);
+                $parentValid = (bool)$stmt->fetchColumn();
+            }
+        }
+
+        // قسم له أقسام فرعية يبقى رئيسياً — لا يمكن نقله تحت قسم آخر
+        $stmt = $db->prepare("SELECT COUNT(*) FROM categories WHERE parent_id = ?");
+        $stmt->execute([$id]);
+        $hasChildren = (int)$stmt->fetchColumn() > 0;
+
         if (empty($name)) {
             $error = 'اسم القسم مطلوب';
+        } elseif (!$parentValid) {
+            $error = 'القسم الأب غير صالح';
+        } elseif ($parent_id !== null && $hasChildren) {
+            $error = 'لا يمكن نقل قسم يحتوي على أقسام فرعية إلى قسم آخر';
         } else {
-            $stmt = $db->prepare("UPDATE categories SET name = ?, slug = ?, sort_order = ?, is_active = ? WHERE id = ?");
-            $stmt->execute([$name, $slug, $sort_order, $is_active, $id]);
+            $stmt = $db->prepare("UPDATE categories SET name = ?, slug = ?, sort_order = ?, is_active = ?, parent_id = ? WHERE id = ?");
+            $stmt->execute([$name, $slug, $sort_order, $is_active, $parent_id, $id]);
             $success = 'تم تحديث القسم بنجاح';
         }
     } elseif (isset($_POST['delete_category'])) {
         $id = (int)$_POST['id'];
         
-        $stmt = $db->prepare("SELECT COUNT(*) FROM articles WHERE category_id = ?");
+        $stmt = $db->prepare("SELECT COUNT(*) FROM categories WHERE parent_id = ?");
         $stmt->execute([$id]);
-        $count = $stmt->fetchColumn();
+        $childrenCount = (int)$stmt->fetchColumn();
         
-        if ($count > 0) {
-            $error = 'لا يمكن حذف القسم لأنه يحتوي على مقالات';
+        if ($childrenCount > 0) {
+            $error = 'لا يمكن حذف القسم لأنه يحتوي على أقسام فرعية';
         } else {
-            $stmt = $db->prepare("DELETE FROM categories WHERE id = ?");
+            $stmt = $db->prepare("SELECT COUNT(*) FROM articles WHERE category_id = ?");
             $stmt->execute([$id]);
-            $success = 'تم حذف القسم بنجاح';
+            $count = $stmt->fetchColumn();
+
+            if ($count > 0) {
+                $error = 'لا يمكن حذف القسم لأنه يحتوي على مقالات';
+            } else {
+                $stmt = $db->prepare("DELETE FROM categories WHERE id = ?");
+                $stmt->execute([$id]);
+                $success = 'تم حذف القسم بنجاح';
+            }
         }
     }
 }
 
-$stmt = $db->query("SELECT * FROM categories ORDER BY sort_order ASC, id DESC");
-$categories = $stmt->fetchAll();
+$categories = getAllCategories(false);
+
+$parentNames = [];
+$topLevelCategories = [];
+foreach ($categories as $categoryRow) {
+    $parentNames[(int)$categoryRow['id']] = $categoryRow['name'];
+    if (empty($categoryRow['parent_id'])) {
+        $topLevelCategories[] = $categoryRow;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -130,6 +178,15 @@ $categories = $stmt->fetchAll();
                                 <input type="text" name="slug" id="slug" class="form-control">
                             </div>
                             <div class="form-group">
+                                <label for="parent_id">القسم الأب</label>
+                                <select name="parent_id" id="parent_id" class="form-control">
+                                    <option value="">قسم رئيسي (بلا أب)</option>
+                                    <?php foreach ($topLevelCategories as $parentOption): ?>
+                                        <option value="<?php echo $parentOption['id']; ?>"><?php echo e($parentOption['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="form-group">
                                 <label for="sort_order">الترتيب</label>
                                 <input type="number" name="sort_order" id="sort_order" class="form-control" value="0">
                             </div>
@@ -152,6 +209,7 @@ $categories = $stmt->fetchAll();
                                 <thead>
                                     <tr>
                                         <th>الاسم</th>
+                                        <th>القسم الأب</th>
                                         <th>الترتيب</th>
                                         <th>الحالة</th>
                                         <th>إجراءات</th>
@@ -159,13 +217,26 @@ $categories = $stmt->fetchAll();
                                 </thead>
                                 <tbody>
                                     <?php foreach ($categories as $cat): ?>
-                                    <tr>
+                                    <?php
+                                    $isSubcategory = !empty($cat['parent_id']);
+                                    $parentLabel = $isSubcategory ? ($parentNames[(int)$cat['parent_id']] ?? '') : 'رئيسي';
+                                    ?>
+                                    <tr class="<?php echo $isSubcategory ? 'subcategory-row' : ''; ?>">
                                         <form method="POST" action="">
                                             <?php echo csrfField(); ?>
                                             <input type="hidden" name="id" value="<?php echo $cat['id']; ?>">
                                             <td>
                                                 <input type="text" name="name" value="<?php echo e($cat['name']); ?>" class="form-control form-control-sm" required>
                                                 <input type="hidden" name="slug" value="<?php echo e($cat['slug']); ?>">
+                                            </td>
+                                            <td>
+                                                <span class="form-hint"><?php echo e($parentLabel); ?></span>
+                                                <select name="parent_id" class="form-control form-control-sm mt-2">
+                                                    <option value="">قسم رئيسي (بلا أب)</option>
+                                                    <?php foreach ($topLevelCategories as $parentOption): ?>
+                                                        <option value="<?php echo $parentOption['id']; ?>" <?php echo (int)$cat['parent_id'] === (int)$parentOption['id'] ? 'selected' : ''; ?>><?php echo e($parentOption['name']); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
                                             </td>
                                             <td>
                                                 <input type="number" name="sort_order" value="<?php echo $cat['sort_order']; ?>" class="form-control form-control-sm" style="width: 60px;">

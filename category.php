@@ -25,6 +25,25 @@ $articles = $results['articles'];
 $total = $results['total'];
 $totalPages = ceil($total / $perPage);
 
+// الأقسام الفرعية: «الأب» هو القسم نفسه إن كان رئيسياً، وإلا فأبوه.
+$categoryParent = null;      // صف الأب — لعرض «ضمن قسم …» في البانر
+$subcategoryParent = null;   // صف الأب الذي تُعرض أبناؤه في الشرائح
+$subcategories = [];
+
+if (empty($category['parent_id'])) {
+    $children = getChildCategories($id);
+    if ($children) {
+        $subcategories = $children;
+        $subcategoryParent = $category;
+    }
+} else {
+    $categoryParent = getCategoryById((int) $category['parent_id']);
+    if ($categoryParent) {
+        $subcategoryParent = $categoryParent;
+        $subcategories = getChildCategories((int) $categoryParent['id']);
+    }
+}
+
 $pageTitle = $category['name'];
 include __DIR__ . '/includes/header.php';
 ?>
@@ -32,8 +51,20 @@ include __DIR__ . '/includes/header.php';
 <div class="category-header-banner">
     <div class="category-badge-pill"><i class="fas fa-folder-open"></i> قسم</div>
     <h1 class="category-banner-title"><?= e($category['name']) ?></h1>
+    <?php if ($categoryParent): ?>
+    <a class="category-parent-link" href="<?= SITE_URL ?>/category.php?id=<?= (int) $categoryParent['id'] ?>">ضمن قسم <?= e($categoryParent['name']) ?></a>
+    <?php endif; ?>
     <p class="category-banner-subtitle">أحدث الأخبار والتقارير في قسم <?= e($category['name']) ?> (<?= $total ?> مادة إخبارية)</p>
 </div>
+
+<?php if ($subcategoryParent): ?>
+<div class="subcategory-bar">
+    <a class="subcategory-chip <?= (int) $category['id'] === (int) $subcategoryParent['id'] ? 'active' : '' ?>" href="<?= SITE_URL ?>/category.php?id=<?= (int) $subcategoryParent['id'] ?>">الكل</a>
+    <?php foreach ($subcategories as $sub): ?>
+    <a class="subcategory-chip <?= (int) $category['id'] === (int) $sub['id'] ? 'active' : '' ?>" href="<?= SITE_URL ?>/category.php?id=<?= (int) $sub['id'] ?>"><?= e($sub['name']) ?></a>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <?php if (empty($articles)): ?>
     <div class="empty-state-box">

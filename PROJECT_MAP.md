@@ -186,5 +186,9 @@ ALTER TABLE radio_schedule
 | الإنهاء | زر «أنهِ» · ENDED من المشغّل · تلقائياً بعد 6 ساعات |
 | الخطة | `docs/plans/youtube-live-plan.md` |
 
+## [NEWS API — قراءة عامة لخادم خارجي]
+`api/news.php` — JSON للقراءة فقط بلا مصادقة: `?zones=1` المناطق · `?area=<slug|name|id>&limit&offset` أخبار منطقة · `?id=<id>` خبر كامل · `Cache-Control: public, max-age=60`.
+المناطق هي الأبناء النشطون للتصنيف الأب `1`، تُقرأ من قاعدة البيانات عند كل طلب — إضافة منطقة = تصنيف فرعي من اللوحة فقط، بلا كود ولا نشر.
+
 ## [ORPHANS & PENDING]
 - None. All tasks completed successfully.

@@ -441,6 +441,47 @@ img {
     color: #fbbf24;
 }
 
+/* القوائم الفرعية — تظهر عند المرور أو التركيز على القسم الأب */
+.nav-submenu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 210px;
+    display: none;
+    flex-direction: column;
+    background: var(--navy-main);
+    border-top: 2px solid var(--primary);
+    border-radius: 0 0 10px 10px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    z-index: 120;
+}
+
+.nav-item.has-children:hover .nav-submenu,
+.nav-item.has-children:focus-within .nav-submenu {
+    display: flex;
+}
+
+.nav-submenu-link {
+    display: block;
+    padding: 11px 18px;
+    color: var(--white);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+.nav-submenu-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--white);
+}
+
+.nav-submenu-link.active {
+    background: rgba(217, 4, 41, 0.25);
+    color: var(--white);
+}
+
 .mobile-menu-toggle {
     display: none;
     background: transparent;
@@ -1397,6 +1438,54 @@ img {
     font-size: 0.95rem;
 }
 
+/* الأقسام الفرعية داخل صفحة القسم */
+.subcategory-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+
+.subcategory-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 18px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-heading);
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: var(--transition-fast);
+}
+
+.subcategory-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.subcategory-chip.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--white);
+}
+
+.category-parent-link {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding-bottom: 1px;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 700;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.35);
+}
+
+.category-parent-link:hover {
+    color: var(--white);
+    border-bottom-color: var(--white);
+}
+
 /* Empty State */
 .empty-state-box {
     background: var(--bg-card);
@@ -1718,6 +1807,30 @@ img {
         padding: 12px 15px;
     }
     
+    .nav-item.has-children {
+        width: 100%;
+    }
+
+    /* على الجوال تظهر الأقسام الفرعية داخل القائمة المفتوحة بدل القائمة المنسدلة */
+    .nav-submenu {
+        position: static;
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        background: rgba(255, 255, 255, 0.04);
+        border-top: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .nav-submenu-link {
+        padding: 10px 32px;
+    }
+
+    .subcategory-bar {
+        flex-wrap: wrap;
+    }
+
     .slide-title {
         font-size: 1.4rem;
     }
