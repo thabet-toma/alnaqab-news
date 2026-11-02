@@ -74,7 +74,9 @@ $radioConfig = getRadioConfig();
                         <a href="<?= SITE_URL ?>/article.php?id=<?= $article['id'] ?>" class="ranked-article-item">
                             <span class="rank-number rank-<?= $idx + 1 ?>"><?= $idx + 1 ?></span>
                             <div class="ranked-img-wrap">
+                                <?php if ($article['image'] && !isSubstituteImage($article['image'])): ?>
                                 <img src="<?= articleImage($article['image']) ?>" alt="<?= e($article['title']) ?>" loading="lazy">
+                                <?php endif; ?>
                             </div>
                             <div class="ranked-content">
                                 <h4 class="ranked-title"><?= e($article['title']) ?></h4>

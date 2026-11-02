@@ -10,6 +10,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $perPage = ARTICLES_PER_PAGE;
 
 $pageTitle = 'نتائج البحث' . ($q ? ': ' . $q : '');
+$robotsMeta = 'noindex, follow'; // صفحات البحث لا تُفهرس
 include __DIR__ . '/includes/header.php';
 
 $results = searchArticles($q, $page, $perPage);

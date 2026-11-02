@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /api/
+Disallow: /guest.php
+Disallow: /studio.php
+Disallow: /search.php
+
+Sitemap: https://radio.ktra-pro.tech/sitemap.php

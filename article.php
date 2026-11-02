@@ -22,9 +22,24 @@ incrementViews($id);
 
 $pageTitle = $article['title'];
 $metaDescription = excerpt($article['excerpt'] ?: $article['body'], 30);
-if ($article['image']) {
+if ($article['image'] && !isSubstituteImage($article['image'])) {
     $metaImage = articleImage($article['image']);
 }
+
+// بيانات للبحث: النوع article وJSON-LD من نوع NewsArticle (يطبعها header.php)
+$ogType = 'article';
+$publishedTs = strtotime((string) ($article['published_at'] ?? '')) ?: time();
+$modifiedTs  = strtotime((string) ($article['updated_at'] ?? '')) ?: $publishedTs;
+$structuredData = [
+    '@context' => 'https://schema.org', '@type' => 'NewsArticle',
+    'headline' => mb_substr($article['title'], 0, 110),
+    'mainEntityOfPage' => rtrim(SITE_URL, '/') . '/article.php?id=' . $id,
+    'datePublished' => date('c', $publishedTs),
+    'dateModified' => date('c', $modifiedTs),
+    'author' => ['@type' => 'Organization', 'name' => trim((string) ($article['author_name'] ?? '')) ?: SITE_NAME],
+    'publisher' => ['@type' => 'Organization', 'name' => SITE_NAME],
+];
+if (!empty($metaImage)) $structuredData['image'] = [$metaImage];
 
 include __DIR__ . '/includes/header.php';
 
@@ -50,7 +65,7 @@ $encodedTitle = urlencode($article['title']);
         </div>
     </header>
 
-    <?php if ($article['image']): ?>
+    <?php if ($article['image'] && !isSubstituteImage($article['image'])): ?>
     <div class="single-hero-img-wrap">
         <img src="<?= articleImage($article['image']) ?>" alt="<?= e($article['title']) ?>" class="single-hero-img">
     </div>
@@ -93,7 +108,9 @@ $encodedTitle = urlencode($article['title']);
     <?php foreach ($relatedArticles as $rel): ?>
     <article class="article-card">
         <a href="<?= SITE_URL ?>/article.php?id=<?= $rel['id'] ?>" class="card-img-wrap">
+            <?php if ($rel['image'] && !isSubstituteImage($rel['image'])): ?>
             <img src="<?= articleImage($rel['image']) ?>" alt="<?= e($rel['title']) ?>" loading="lazy">
+            <?php endif; ?>
         </a>
         <div class="card-content">
             <h3 class="card-title">

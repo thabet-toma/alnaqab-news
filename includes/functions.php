@@ -341,8 +341,40 @@ function setSetting(string $key, string $value): void {
 
 /* ===== رفع الصور ومساراتها ===== */
 
+function substituteImages(): array {
+    // صور استُخدمت في أكثر من خبر: بانرات/إعلانات موقع المصدر، لا صورة الخبر.
+    // صورة الخبر الحقيقية فريدة، والإعلان يتكرر على كل خبر.
+    static $map = null;
+    if ($map !== null) return $map;
+    $map = [];
+    try {
+        $rows = db()->query(
+            "SELECT image, COUNT(*) AS c FROM articles
+              WHERE image <> '' GROUP BY image HAVING c > 1"
+        )->fetchAll();
+        foreach ($rows as $r) $map[(string) $r['image']] = (int) $r['c'];
+    } catch (Throwable $e) {
+        $map = [];
+    }
+    return $map;
+}
+
+function isSubstituteImage(?string $image): bool {
+    if (empty($image)) return false;
+    $img = (string) $image;
+    $low = strtolower($img);
+    // أسماء ملفات معروفة على مواقع المصدر بأنها بوسترات/بانرات دعائية (للصور الخارجية فقط،
+    // كي لا نرفض صوراً رفعها هو يدوياً باسم WhatsApp)
+    if (strpos($low, 'http') === 0) {
+        foreach (['whatsapp-image', 'mada-', '1200x600', 'telegram-cloud'] as $token) {
+            if (strpos($low, $token) !== false) return true;
+        }
+    }
+    return isset(substituteImages()[$img]);
+}
+
 function articleImage(?string $image): string {
-    if (!empty($image)) {
+    if (!empty($image) && !isSubstituteImage($image)) {
         if (strpos($image, 'http') === 0) return $image;
         if (strpos($image, 'articles/') === 0) return UPLOADS_URL . '/' . $image;
         return UPLOADS_URL . '/articles/' . $image;
@@ -393,10 +425,29 @@ function uploadImage(array $file, string $subdir = 'articles'): ?string {
 /* ===== النشر التلقائي على صفحة فيسبوك ===== */
 
 /**
- * ينشر خبراً منشوراً على صفحة فيسبوك مرّة واحدة (العمود fb_post_id يمنع التكرار).
- * لا يرمي استثناءً ولا يعطّل حفظ الخبر: أي فشل يُسجَّل في error_log فقط.
- * يعمل فقط لو عُرِّف FB_PAGE_ID و FB_PAGE_TOKEN في config.php.
+ * يحدّث معاينة الرابط المحفوظة في فيسبوك (الصورة والعنوان) قبل النشر.
  */
+function facebookRefreshScrape(string $url): int {
+    // فيسبوك يحفظ معاينة الرابط (الصورة) مؤقتاً. نحدّثها قبل النشر كي لا تظهر صورة قديمة/إعلان.
+    if (!defined('FB_PAGE_TOKEN') || FB_PAGE_TOKEN === '' || !function_exists('curl_init')) return 0;
+    $ch = curl_init('https://graph.facebook.com/v23.0/');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => [
+            'id'           => $url,
+            'scrape'       => 'true',
+            'access_token' => FB_PAGE_TOKEN,
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT        => 6,
+    ]);
+    curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return $code;
+}
+
 function facebookPostArticle(int $articleId): bool {
     if (!defined('FB_PAGE_ID') || !defined('FB_PAGE_TOKEN') || FB_PAGE_ID === '' || FB_PAGE_TOKEN === '') return false;
     if (!function_exists('curl_init')) return false;
@@ -411,6 +462,10 @@ function facebookPostArticle(int $articleId): bool {
     $claim->execute([$articleId]);
     if ($claim->rowCount() === 0) return false;
 
+    // حدّث معاينة الرابط عند فيسبوك قبل النشر (يمنع معاينة قديمة/إعلانية)
+    $articleUrl = rtrim(SITE_URL, '/') . '/article.php?id=' . $articleId;
+    facebookRefreshScrape($articleUrl);
+
     $message = $article['title'];
     $summary = excerpt($article['excerpt'] ?: $article['body'], 30);
     if ($summary !== '') $message .= "\n\n" . $summary;
@@ -420,7 +475,7 @@ function facebookPostArticle(int $articleId): bool {
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => [
             'message'      => $message,
-            'link'         => rtrim(SITE_URL, '/') . '/article.php?id=' . $articleId,
+            'link'         => $articleUrl,
             'access_token' => FB_PAGE_TOKEN,
         ],
         CURLOPT_RETURNTRANSFER => true,

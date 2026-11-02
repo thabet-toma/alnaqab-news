@@ -34,7 +34,24 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
     $reqUri   = $_SERVER['REQUEST_URI'] ?? '/';
     if ($sitePath !== '' && str_starts_with($reqUri, $sitePath)) $reqUri = substr($reqUri, strlen($sitePath));
     ?>
-    <meta property="og:type" content="website">
+    <?php
+    // الرابط القانوني لمحركات البحث: المسار + المعاملات id/page فقط (يُسقط utm وغيرها)
+    $canonPath = (string) (parse_url($reqUri, PHP_URL_PATH) ?: '/');
+    if ($canonPath === '/index.php') $canonPath = '/';
+    parse_str((string) parse_url($reqUri, PHP_URL_QUERY), $canonQs);
+    $canonKeep = [];
+    foreach (['id', 'page'] as $k) {
+        if (isset($canonQs[$k]) && is_string($canonQs[$k]) && ctype_digit($canonQs[$k])) $canonKeep[$k] = $canonQs[$k];
+    }
+    if (($canonKeep['page'] ?? '1') === '1') unset($canonKeep['page']);
+    $canonicalUrl = rtrim(SITE_URL, '/') . $canonPath . ($canonKeep ? '?' . http_build_query($canonKeep) : '');
+    ?>
+    <?php if (!empty($robotsMeta)): ?>
+    <meta name="robots" content="<?= e($robotsMeta) ?>">
+    <?php else: ?>
+    <link rel="canonical" href="<?= e($canonicalUrl) ?>">
+    <?php endif; ?>
+    <meta property="og:type" content="<?= e($ogType ?? 'website') ?>">
     <meta property="og:site_name" content="<?= e(SITE_NAME) ?>">
     <meta property="og:url" content="<?= e(rtrim(SITE_URL, '/') . $reqUri) ?>">
     <meta name="twitter:card" content="<?= isset($metaImage) ? 'summary_large_image' : 'summary' ?>">
@@ -43,7 +60,29 @@ $category_id = isset($_GET['id']) && $current_page == 'category.php' ? (int)$_GE
     <?php if(isset($metaImage)): ?>
     <meta property="og:image" content="<?= e($metaImage) ?>">
     <?php endif; ?>
-    
+
+    <?php
+    // بيانات منظّمة لجوجل: اسم الموقع على الرئيسية (مع الاسم القديم بديلاً)، ومقال إخباري في صفحة الخبر
+    $ldBlocks = [];
+    if ($current_page === 'index.php') {
+        $homeUrl = rtrim(SITE_URL, '/') . '/';
+        $ldBlocks[] = [
+            '@context' => 'https://schema.org', '@type' => 'WebSite',
+            'name' => SITE_NAME, 'alternateName' => ['موقع النقب الإخباري'], 'url' => $homeUrl,
+        ];
+        $org = [
+            '@context' => 'https://schema.org', '@type' => 'NewsMediaOrganization',
+            'name' => SITE_NAME, 'alternateName' => ['موقع النقب الإخباري'], 'url' => $homeUrl,
+        ];
+        if (defined('FB_PAGE_ID') && FB_PAGE_ID !== '') $org['sameAs'] = ['https://www.facebook.com/' . FB_PAGE_ID];
+        $ldBlocks[] = $org;
+    }
+    if (!empty($structuredData)) $ldBlocks[] = $structuredData;
+    foreach ($ldBlocks as $ld) {
+        echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) . '</script>' . "\n    ";
+    }
+    ?>
+
     <!-- Google Fonts: Tajawal, Lalezar, Cairo -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

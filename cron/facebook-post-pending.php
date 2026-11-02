@@ -26,7 +26,7 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-const FB_AUTOPOST_AFTER_ID = 65;
+const FB_AUTOPOST_AFTER_ID = 63;
 const FB_AUTOPOST_PER_RUN  = 3;
 
 $dryRun = in_array('--dry-run', $argv ?? [], true);
