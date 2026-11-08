@@ -58,6 +58,41 @@ function slugify(string $text): string {
     return mb_substr(trim($text, '-'), 0, 200);
 }
 
+/**
+ * رابط فريد للمقال — يفحص التصادم مع عمود articles.slug الفريد ولا يكتب شيئاً في قاعدة البيانات.
+ * يقصّ الرابط إلى 200 حرف، ويرجّع '' إن كان فارغاً بعد القص.
+ * $excludeId يستثني المقال الحالي عند التعديل حتى لا يتصادم مع نفسه.
+ */
+function uniqueArticleSlug(string $slug, int $excludeId = 0): string {
+    $slug = mb_substr(trim($slug), 0, 200);
+    if ($slug === '') return '';
+
+    // هل الرابط محجوز في مقال آخر؟ (استعلام prepared، والمقال الحالي مستثنى)
+    $isTaken = static function (string $candidate) use ($excludeId): bool {
+        $stmt = db()->prepare('SELECT id FROM articles WHERE slug = ? AND id != ? LIMIT 1');
+        $stmt->execute([$candidate, $excludeId]);
+        return (bool) $stmt->fetchColumn();
+    };
+
+    if (!$isTaken($slug)) return $slug;
+
+    // نُبقي مكاناً للاحقة داخل حد 200 حرف
+    $base = mb_substr($slug, 0, 190);
+
+    // لاحقة رقمية تدريجية بسقف صريح يمنع الحلقة اللانهائية
+    for ($i = 2; $i <= 50; $i++) {
+        $candidate = $base . '-' . $i;
+        if (!$isTaken($candidate)) return $candidate;
+    }
+
+    // بلوغ السقف: لاحقة عشوائية قصيرة بدل الدوران بلا نهاية
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $candidate = $base . '-' . substr(bin2hex(random_bytes(4)), 0, 6);
+        if (!$isTaken($candidate)) return $candidate;
+    }
+    return $base . '-' . substr(bin2hex(random_bytes(4)), 0, 6);
+}
+
 /* ===== استعلامات الأخبار ===== */
 
 /** جلب الأخبار المميزة */

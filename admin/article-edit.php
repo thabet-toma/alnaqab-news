@@ -52,6 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($slug)) {
         $slug = slugify($title);
     }
+    // عمود slug فريد في قاعدة البيانات: لا نكتب رابطاً مكرراً
+    if ($slug === '') {
+        $slug = 'news';
+    }
+    // ضمان رابط غير مكرر قبل أي كتابة (المقال الحالي مستثنى عند التعديل)
+    $slug = uniqueArticleSlug($slug, $isEdit ? $id : 0);
     
     $imagePath = $article['image'];
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
@@ -70,31 +76,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($error)) {
         // الخبر الذي كان منشوراً أصلاً لا يُعاد نشره على فيسبوك عند تعديله
         $wasPublished = $isEdit && $article['status'] === 'published';
-        if ($isEdit) {
-            $stmt = $db->prepare("UPDATE articles SET 
-                title = ?, slug = ?, excerpt = ?, body = ?, image = ?, 
-                category_id = ?, type = ?, is_featured = ?, is_breaking = ?, 
-                author_name = ?, status = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([
-                $title, $slug, $excerpt, $body, $imagePath,
-                $category_id, $type, $is_featured, $is_breaking,
-                $author_name, $status, $id
-            ]);
-            $success = 'تم تحديث المقال بنجاح';
-            if (!$wasPublished && $status === 'published') facebookPostArticle($id);
-            $article = getArticleById($id);
-        } else {
-            $stmt = $db->prepare("INSERT INTO articles 
-                (title, slug, excerpt, body, image, category_id, type, is_featured, is_breaking, author_name, status, published_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
-            $stmt->execute([
-                $title, $slug, $excerpt, $body, $imagePath,
-                $category_id, $type, $is_featured, $is_breaking,
-                $author_name, $status
-            ]);
-            if ($status === 'published') facebookPostArticle((int) $db->lastInsertId());
-            header("Location: articles.php");
-            exit;
+        try {
+            if ($isEdit) {
+                $stmt = $db->prepare("UPDATE articles SET 
+                    title = ?, slug = ?, excerpt = ?, body = ?, image = ?, 
+                    category_id = ?, type = ?, is_featured = ?, is_breaking = ?, 
+                    author_name = ?, status = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([
+                    $title, $slug, $excerpt, $body, $imagePath,
+                    $category_id, $type, $is_featured, $is_breaking,
+                    $author_name, $status, $id
+                ]);
+                $success = 'تم تحديث المقال بنجاح';
+                if (!$wasPublished && $status === 'published') facebookPostArticle($id);
+                $article = getArticleById($id);
+            } else {
+                $stmt = $db->prepare("INSERT INTO articles 
+                    (title, slug, excerpt, body, image, category_id, type, is_featured, is_breaking, author_name, status, published_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
+                $stmt->execute([
+                    $title, $slug, $excerpt, $body, $imagePath,
+                    $category_id, $type, $is_featured, $is_breaking,
+                    $author_name, $status
+                ]);
+                if ($status === 'published') facebookPostArticle((int) $db->lastInsertId());
+                header("Location: articles.php");
+                exit;
+            }
+        } catch (PDOException $ex) {
+            // خطأ قاعدة البيانات يظهر كتنبيه عربي بدل صفحة 500
+            $error = $ex->getCode() === '23000'
+                ? 'تعذّر حفظ المقال: الرابط (slug) مستخدم في مقال آخر. جرّب رابطاً مختلفاً.'
+                : 'تعذّر حفظ المقال بسبب خطأ في قاعدة البيانات. يرجى المحاولة مجدداً.';
+            error_log('article-edit: فشل حفظ المقال (' . ($isEdit ? 'تعديل #' . $id : 'إضافة') . '): ' . $ex->getMessage());
         }
     }
 }
@@ -235,8 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (slug.value === '') {
                 var text = this.value;
                 slug.value = text.toLowerCase().trim()
-                    .replace(/[^\w\s-أ-ي]/g, '')
-                    .replace(/[\s_-]+/g, '-')
+                    .replace(/[^\p{L}\p{N}]+/gu, '-')
                     .replace(/^-+|-+$/g, '');
             }
         });
